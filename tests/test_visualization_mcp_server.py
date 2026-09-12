@@ -119,6 +119,50 @@ class VisualizationMcpServerTests(unittest.TestCase):
             required_preview_kinds={"table"},
         )
 
+    def test_route_tool_supports_explicit_sidecar_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = pathlib.Path(tmpdir)
+            data_dir = root / "data"
+            sidecar_dir = root / "sidecars"
+            data_dir.mkdir()
+            sidecar_dir.mkdir()
+            table_path = data_dir / "expression.tsv"
+            table_path.write_text(
+                "\n".join(
+                    [
+                        "gene\tN1\tN2\tT1\tT2",
+                        "G1\t1\t2\t5\t6",
+                        "G2\t2\t1\t4\t5",
+                        "G3\t5\t6\t1\t2",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (sidecar_dir / "rowInfo.tsv").write_text("gene\tdirect\nG1\tUp\nG2\tUp\nG3\tDown\n", encoding="utf-8")
+            (sidecar_dir / "colInfo.tsv").write_text("sample\tgroup\nN1\tNormal\nN2\tNormal\nT1\tTumor\nT2\tTumor\n", encoding="utf-8")
+            (sidecar_dir / "enrichment.tsv").write_text(
+                "database\tChange\tDescription\tp.adjust\nGO\tUp\tcell cycle\t0.001\nGO\tDown\tcell death\t0.02\n",
+                encoding="utf-8",
+            )
+            payload = self.call_tool(
+                "omics_visualization_route",
+                {
+                    "table_path": str(table_path),
+                    "sidecar_dir": str(sidecar_dir),
+                    "query": "DE expression heatmap with aligned enrichment zooms",
+                    "top": 2,
+                },
+            )
+        self.assertEqual(payload["selected"]["id"], "heatmap-enrichment-zoom")
+        self.assertIn("enrichment_zoom_sidecars", payload["input_profile_summary"]["sidecar_shapes"])
+        self.assertEqual(sorted(payload["input_profile_summary"]["sidecars"]), ["colInfo.tsv", "enrichment.tsv", "rowInfo.tsv"])
+        assert_result_frontend_contract(
+            self,
+            payload,
+            expected_components={"dataset"},
+            required_preview_kinds={"table"},
+        )
+
     def test_contract_coverage_tool_reports_catalog_totals(self) -> None:
         payload = self.call_tool("omics_visualization_contract_coverage", {"max_missing_per_family": 2})
         self.assertTrue(payload["ok"])

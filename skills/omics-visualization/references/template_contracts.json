@@ -596,7 +596,8 @@
       "preview": "scripts/heatmap/corr_grouped/preview.png",
       "preferred_shapes": [
         "long_association",
-        "grouped_correlation"
+        "grouped_correlation",
+        "annotation_sidecars"
       ],
       "roles": {
         "required": [
@@ -629,7 +630,8 @@
       "preview": "scripts/heatmap/corr_rotate/preview.png",
       "preferred_shapes": [
         "long_association",
-        "triangular_correlation"
+        "triangular_correlation",
+        "annotation_sidecars"
       ],
       "roles": {
         "required": [
@@ -3723,7 +3725,8 @@
       "source": "scripts/graph/basic/plot.R",
       "preview": "scripts/graph/basic/preview.png",
       "preferred_shapes": [
-        "network_edges"
+        "network_edges",
+        "node_link_sidecars"
       ],
       "roles": {
         "required": [
@@ -3755,7 +3758,8 @@
       "source": "scripts/graph/force/plot.R",
       "preview": "scripts/graph/force/preview.png",
       "preferred_shapes": [
-        "network_edges"
+        "network_edges",
+        "node_link_sidecars"
       ],
       "roles": {
         "required": [
@@ -3787,7 +3791,7 @@
       "preview": "scripts/graph/circular/preview.png",
       "preferred_shapes": [
         "network_edges",
-        "flow_table"
+        "node_link_sidecars"
       ],
       "roles": {
         "required": [
@@ -3879,7 +3883,8 @@
       "preview": "scripts/graph/hive/preview.png",
       "preferred_shapes": [
         "signed_network_edges",
-        "network_edges"
+        "network_edges",
+        "node_link_sidecars"
       ],
       "roles": {
         "required": [
@@ -3911,7 +3916,8 @@
       "preview": "scripts/graph/fabric/preview.png",
       "preferred_shapes": [
         "signed_network_edges",
-        "network_edges"
+        "network_edges",
+        "node_link_sidecars"
       ],
       "roles": {
         "required": [
@@ -3942,7 +3948,8 @@
       "preview": "scripts/graph/matrix/preview.png",
       "preferred_shapes": [
         "signed_network_edges",
-        "network_edges"
+        "network_edges",
+        "node_link_sidecars"
       ],
       "roles": {
         "required": [
@@ -3972,7 +3979,8 @@
       "source": "scripts/graph/cartesian/plot.R",
       "preview": "scripts/graph/cartesian/preview.png",
       "preferred_shapes": [
-        "network_edges"
+        "network_edges",
+        "node_link_sidecars"
       ],
       "roles": {
         "required": [
@@ -4034,7 +4042,8 @@
       "preview": "scripts/heatmap/enrichment_zoom/preview.png",
       "preferred_shapes": [
         "numeric_matrix",
-        "dendrogram_matrix"
+        "dendrogram_matrix",
+        "enrichment_zoom_sidecars"
       ],
       "roles": {
         "required": [
@@ -4335,7 +4344,8 @@
       "preview": "scripts/ideogram/loci/preview.png",
       "preferred_shapes": [
         "genomic_locus_table",
-        "genomic_interval_table"
+        "genomic_interval_table",
+        "genomic_annotation_sidecars"
       ],
       "roles": {
         "required": [
@@ -4397,7 +4407,8 @@
       "preview": "scripts/ideogram/coverage/preview.png",
       "preferred_shapes": [
         "genomic_coverage_tracks",
-        "genomic_track_table"
+        "genomic_track_table",
+        "genomic_annotation_sidecars"
       ],
       "roles": {
         "required": [
@@ -4429,7 +4440,8 @@
       "source": "scripts/ideogram/lollipop/plot.R",
       "preview": "scripts/ideogram/lollipop/preview.png",
       "preferred_shapes": [
-        "protein_lollipop_table"
+        "protein_lollipop_table",
+        "protein_domain_sidecar"
       ],
       "roles": {
         "required": [
@@ -4459,7 +4471,8 @@
       "source": "scripts/ideogram/dandelion/plot.R",
       "preview": "scripts/ideogram/dandelion/preview.png",
       "preferred_shapes": [
-        "site_score_table"
+        "site_score_table",
+        "genomic_annotation_sidecars"
       ],
       "roles": {
         "required": [
@@ -4490,7 +4503,8 @@
       "preview": "scripts/ideogram/circos/preview.png",
       "preferred_shapes": [
         "genomic_track_table",
-        "genomic_interval_table"
+        "genomic_interval_table",
+        "genomic_annotation_sidecars"
       ],
       "roles": {
         "required": [
@@ -4524,7 +4538,8 @@
       "preview": "scripts/ideogram/circos_heatmap/preview.png",
       "preferred_shapes": [
         "genomic_heatmap_table",
-        "genomic_interval_table"
+        "genomic_interval_table",
+        "genomic_annotation_sidecars"
       ],
       "roles": {
         "required": [
@@ -4556,7 +4571,8 @@
       "preview": "scripts/ideogram/nested/preview.png",
       "preferred_shapes": [
         "nested_genomic_windows",
-        "genomic_interval_table"
+        "genomic_interval_table",
+        "genomic_annotation_sidecars"
       ],
       "roles": {
         "required": [
@@ -4588,7 +4604,8 @@
       "source": "scripts/ideogram/synteny/plot.R",
       "preview": "scripts/ideogram/synteny/preview.png",
       "preferred_shapes": [
-        "synteny_blocks"
+        "synteny_blocks",
+        "synteny_sidecars"
       ],
       "roles": {
         "required": [

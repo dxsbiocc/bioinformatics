@@ -52,13 +52,15 @@ def omics_visualization_route(args: JsonObject) -> JsonObject:
     )
     include_profile = optional_bool(args, "include_profile", default=True)
     include_contract_coverage = optional_bool(args, "include_contract_coverage", default=False)
+    base_dir = optional_string(args, "base_dir")
     table_path = resolve_table_path(
         require_non_empty_string(args, "table_path"),
-        optional_string(args, "base_dir"),
+        base_dir,
     )
+    sidecar_dir = resolve_sidecar_dir(optional_string(args, "sidecar_dir"), base_dir, table_path.parent)
     contracts_path = resolve_contracts_path(optional_string(args, "contracts_path"))
 
-    profile = build_profile(table_path)
+    profile = build_profile(table_path, sidecar_dir)
     contracts = load_contracts(contracts_path)
     recommendations = recommend(profile, contracts, query, mode, top)
     selected = recommendations[0] if recommendations else None
@@ -76,11 +78,15 @@ def omics_visualization_route(args: JsonObject) -> JsonObject:
         "recommendations": recommendations,
         "input": {
             "table_path": str(table_path),
+            "sidecar_dir": str(sidecar_dir) if sidecar_dir else str(table_path.parent),
             "contracts_path": str(contracts_path),
         },
         "input_profile_summary": profile_summary,
         "next_steps": route_next_steps(selected),
-        "source": source_info("route_template", {"table_path": str(table_path), "contracts_path": str(contracts_path)}),
+        "source": source_info(
+            "route_template",
+            {"table_path": str(table_path), "sidecar_dir": str(sidecar_dir) if sidecar_dir else "", "contracts_path": str(contracts_path)},
+        ),
     }
     response["provenance"] = response["source"]
     if include_profile:
@@ -184,6 +190,23 @@ def resolve_contracts_path(value: str = "") -> Path:
     return path
 
 
+def resolve_sidecar_dir(value: str, base_dir: str, default_dir: Path) -> Path | None:
+    if not value:
+        return None
+    raw = Path(value).expanduser()
+    if raw.is_absolute():
+        path = raw.resolve(strict=False)
+    elif base_dir:
+        path = (Path(base_dir).expanduser() / raw).resolve(strict=False)
+    else:
+        path = (default_dir / raw).resolve(strict=False)
+    if not path.exists():
+        raise McpError(-32602, f"sidecar_dir does not exist: {path}")
+    if not path.is_dir():
+        raise McpError(-32602, f"sidecar_dir must point to a directory: {path}")
+    return path
+
+
 def require_non_empty_string(args: JsonObject, name: str) -> str:
     value = args.get(name)
     if not isinstance(value, str) or not value.strip():
@@ -241,7 +264,11 @@ def summarize_profile(profile: JsonObject) -> JsonObject:
         "column_count": profile.get("column_count"),
         "columns": profile.get("columns", []),
         "shapes": profile.get("shapes", []),
+        "sidecar_dir": profile.get("sidecar_dir", ""),
+        "sidecars": list(profile.get("sidecars", {}).keys()),
+        "sidecar_shapes": profile.get("sidecar_shapes", []),
         "role_mapping": profile.get("role_mapping", {}),
+        "sidecar_role_mapping": profile.get("sidecar_role_mapping", {}),
         "numeric_columns": profile.get("numeric_columns", []),
         "text_columns": profile.get("text_columns", []),
     }
@@ -548,6 +575,7 @@ def tool_definitions() -> list[JsonObject]:
                     "table_path": {"type": "string", "description": "Local CSV/TSV result table to profile."},
                     "query": {"type": "string", "description": "User intent, figure purpose, or an exact template ID such as heatmap-corr-bubble."},
                     "base_dir": {"type": "string", "description": "Optional directory for resolving a relative table_path."},
+                    "sidecar_dir": {"type": "string", "description": "Optional directory for companion files such as nodes.tsv, links.tsv, rowInfo.tsv, colInfo.tsv, cytoband.tsv, domains.tsv, or karyotype.tsv."},
                     "mode": {"type": "string", "enum": sorted(VALID_MODES), "default": "preview"},
                     "top": {"type": "integer", "minimum": 1, "maximum": MAX_TOP_RECOMMENDATIONS, "default": DEFAULT_TOP_RECOMMENDATIONS},
                     "contracts_path": {"type": "string", "description": "Optional local template_contracts.json override."},

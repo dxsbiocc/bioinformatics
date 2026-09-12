@@ -29,6 +29,9 @@
   ideogram templates, raising routed catalog coverage to all 152 templates
   through reusable edge-list, matrix, mutation-event, and genomic-interval
   contracts.
+- Sidecar-aware visualization routing for recognized companion files such as
+  `nodes.tsv`, `links.tsv`, `rowInfo.tsv`, `colInfo.tsv`, `enrichment.tsv`,
+  `cytoband.tsv`, `domains.tsv`, and `karyotype.tsv`.
 - Plugin source hygiene regression test that blocks local transient artifacts
   such as system cache files, R plotting scratch output, and top-level result
   folders from entering the plugin package.
@@ -56,6 +59,10 @@
   parallel sets instead of nested pies.
 - Tightened group-split matrix inference so MA-style statistical summary
   tables remain routed to MA plots rather than circular heatmaps.
+- Visualization MCP route responses now include discovered sidecar files,
+  sidecar-derived shapes, and sidecar role mappings when companion files are
+  present; this is still metadata-only routing and does not compute upstream
+  statistics.
 
 ## 0.1.0 - NCBI MCP Baseline - 2026-09-08
 

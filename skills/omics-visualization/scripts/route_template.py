@@ -19,6 +19,52 @@ from typing import Any
 
 
 DEFAULT_CONTRACTS = Path(__file__).resolve().parents[1] / "references" / "template_contracts.json"
+SIDECAR_STEMS = {
+    "annot",
+    "colinfo",
+    "cytoband",
+    "domains",
+    "edges",
+    "enrichment",
+    "features",
+    "genes",
+    "groups",
+    "karyotype",
+    "links",
+    "loops",
+    "nodes",
+    "points",
+    "rowinfo",
+    "windows",
+}
+SIDECAR_SUFFIXES = {".csv", ".tab", ".tsv"}
+SIDECAR_ROLE_EXPORTS = {
+    "alteration_type",
+    "axis_entity",
+    "category",
+    "chromosome",
+    "count",
+    "cytoband",
+    "direction",
+    "feature_type",
+    "flow_value",
+    "genomic_end",
+    "genomic_start",
+    "mutation_class",
+    "numeric_x",
+    "numeric_y",
+    "pair_id",
+    "residue_position",
+    "significance",
+    "signed_association",
+    "site_position",
+    "source_entity",
+    "target_entity",
+    "track",
+    "weight",
+    "zoom_end",
+    "zoom_start",
+}
 
 ROLE_HINTS: dict[str, tuple[str, ...]] = {
     "focal_entity": (
@@ -923,6 +969,92 @@ def amino_acid_numeric_columns(headers: list[str], numeric_columns: list[str]) -
     ]
 
 
+def discover_sidecars(input_path: Path, sidecar_dir: Path | None = None) -> dict[str, dict[str, Any]]:
+    directory = sidecar_dir or input_path.parent
+    if not directory.is_dir():
+        return {}
+    input_resolved = input_path.resolve(strict=False)
+    sidecars: dict[str, dict[str, Any]] = {}
+    for path in sorted(directory.iterdir(), key=lambda item: item.name.lower()):
+        if not path.is_file() or path.suffix.lower() not in SIDECAR_SUFFIXES:
+            continue
+        if path.resolve(strict=False) == input_resolved:
+            continue
+        if normalize(path.stem) not in SIDECAR_STEMS:
+            continue
+        headers, rows, total_rows = read_rows(path, limit=5000)
+        if not headers:
+            continue
+        mapping = infer_role_mapping(headers, rows)
+        shapes, _details = detect_shapes(headers, rows, mapping)
+        sidecars[path.name] = {
+            "path": str(path.resolve(strict=False)),
+            "row_count": total_rows,
+            "sampled_rows": len(rows),
+            "column_count": len(headers),
+            "columns": headers,
+            "role_mapping": mapping,
+            "shapes": sorted(shapes),
+        }
+    return sidecars
+
+
+def collect_sidecar_role_mapping(sidecars: dict[str, dict[str, Any]]) -> dict[str, str]:
+    role_mapping: dict[str, str] = {}
+    for filename, profile in sidecars.items():
+        mapping = profile.get("role_mapping", {})
+        if not isinstance(mapping, dict):
+            continue
+        for role, column in mapping.items():
+            if role not in SIDECAR_ROLE_EXPORTS or role in role_mapping:
+                continue
+            role_mapping[role] = f"{filename}:{column}"
+    return role_mapping
+
+
+def sidecar_shapes(sidecars: dict[str, dict[str, Any]], input_stem: str = "") -> set[str]:
+    shapes: set[str] = set()
+    stems = {normalize(Path(filename).stem) for filename in sidecars}
+    stems_with_input = set(stems)
+    if input_stem:
+        stems_with_input.add(input_stem)
+    if {"nodes", "links"} <= stems_with_input or {"nodes", "edges"} <= stems_with_input:
+        shapes.add("node_link_sidecars")
+        shapes.add("network_edges")
+    if {"rowinfo", "colinfo", "enrichment"} <= stems:
+        shapes.add("annotation_sidecars")
+        shapes.add("enrichment_zoom_sidecars")
+    elif stems & {"annot", "colinfo", "groups", "rowinfo"}:
+        shapes.add("annotation_sidecars")
+    if "enrichment" in stems:
+        shapes.add("enrichment_sidecar")
+    if stems & {"cytoband", "features", "genes", "loops", "points", "windows"}:
+        shapes.add("genomic_annotation_sidecars")
+    if "domains" in stems:
+        shapes.add("protein_domain_sidecar")
+    if "karyotype" in stems:
+        shapes.add("synteny_sidecars")
+
+    for filename, profile in sidecars.items():
+        mapping = profile.get("role_mapping", {})
+        profile_shapes = set(profile.get("shapes", []))
+        stem = normalize(Path(filename).stem)
+        if not isinstance(mapping, dict):
+            continue
+        if stem in {"edges", "links"} or {"source_entity", "target_entity"} <= set(mapping):
+            shapes.add("network_edges")
+            if "signed_association" in mapping:
+                shapes.add("signed_network_edges")
+            if "weight" in mapping or "count" in mapping or "numeric_y" in mapping:
+                shapes.add("flow_table")
+        if "cytoband_table" in profile_shapes:
+            shapes.add("cytoband_table")
+        if "synteny_blocks" in profile_shapes:
+            shapes.add("synteny_blocks")
+            shapes.add("synteny_sidecars")
+    return shapes
+
+
 def detect_shapes(headers: list[str], rows: list[dict[str, str]], mapping: dict[str, str]) -> tuple[set[str], dict[str, Any]]:
     summaries = {header: numeric_summary(rows, header) for header in headers}
     numeric_columns = [header for header, summary in summaries.items() if summary["is_numeric"]]
@@ -1161,10 +1293,14 @@ def detect_shapes(headers: list[str], rows: list[dict[str, str]], mapping: dict[
     return shapes, profile_details
 
 
-def build_profile(path: Path) -> dict[str, Any]:
+def build_profile(path: Path, sidecar_dir: Path | None = None) -> dict[str, Any]:
     headers, rows, total_rows = read_rows(path)
     mapping = infer_role_mapping(headers, rows)
     shapes, details = detect_shapes(headers, rows, mapping)
+    sidecars = discover_sidecars(path, sidecar_dir)
+    detected_sidecar_shapes = sidecar_shapes(sidecars, normalize(path.stem))
+    shapes.update(detected_sidecar_shapes)
+    sidecar_role_mapping = collect_sidecar_role_mapping(sidecars)
     return {
         "path": str(path),
         "row_count": total_rows,
@@ -1172,6 +1308,10 @@ def build_profile(path: Path) -> dict[str, Any]:
         "column_count": len(headers),
         "columns": headers,
         "role_mapping": mapping,
+        "sidecar_dir": str((sidecar_dir or path.parent).resolve(strict=False)),
+        "sidecars": sidecars,
+        "sidecar_shapes": sorted(detected_sidecar_shapes),
+        "sidecar_role_mapping": sidecar_role_mapping,
         "shapes": sorted(shapes),
         **details,
     }
@@ -1183,7 +1323,7 @@ def load_contracts(path: Path) -> dict[str, Any]:
 
 def score_template(template: dict[str, Any], profile: dict[str, Any], query: str, mode: str) -> dict[str, Any]:
     shapes = set(profile["shapes"])
-    mapping = profile["role_mapping"]
+    mapping = {**profile.get("sidecar_role_mapping", {}), **profile["role_mapping"]}
     preferred_shapes = set(template.get("preferred_shapes", []))
     matched_shapes = sorted(preferred_shapes & shapes)
     required_roles = template.get("roles", {}).get("required", [])
@@ -1208,22 +1348,27 @@ def score_template(template: dict[str, Any], profile: dict[str, Any], query: str
                 "classification_enrichment_tree",
                 "colored_hierarchy_area",
                 "embedding_with_tracks",
+                "enrichment_zoom_sidecars",
                 "enrichment_terms",
                 "genomic_density_windows",
                 "genomic_heatmap_table",
                 "genomic_locus_table",
+                "genomic_annotation_sidecars",
                 "genomic_track_table",
                 "group_split_matrix",
                 "interval_timeline",
                 "mean_difference_table",
                 "multi_root_hierarchy",
                 "mutation_energy_matrix",
+                "node_link_sidecars",
                 "one_to_many_association",
                 "oncoprint_events",
+                "protein_domain_sidecar",
                 "protein_lollipop_table",
                 "rank_time_series",
                 "site_score_table",
                 "synteny_blocks",
+                "synteny_sidecars",
                 "ternary_components",
                 "transcript_feature_table",
             }
@@ -1233,14 +1378,18 @@ def score_template(template: dict[str, Any], profile: dict[str, Any], query: str
                 "cytoband_table": 25,
                 "genomic_density_windows": 25,
                 "genomic_heatmap_table": 25,
+                "genomic_annotation_sidecars": 15,
                 "genomic_locus_table": 25,
                 "genomic_track_table": 25,
                 "group_split_matrix": 25,
                 "mutation_energy_matrix": 25,
+                "node_link_sidecars": 20,
                 "oncoprint_events": 25,
+                "protein_domain_sidecar": 15,
                 "protein_lollipop_table": 25,
                 "site_score_table": 25,
                 "synteny_blocks": 35,
+                "synteny_sidecars": 20,
                 "transcript_feature_table": 25,
             }
             score += sum(decisive_shape_weights.get(shape, 10) for shape in decisive_shapes)
@@ -1327,6 +1476,7 @@ def render_text(payload: dict[str, Any]) -> str:
         f"Input: {payload['input_profile']['path']}",
         f"Rows x columns: {payload['input_profile']['row_count']} x {payload['input_profile']['column_count']}",
         "Detected shapes: " + ", ".join(payload["input_profile"]["shapes"]),
+        "Sidecars: " + ", ".join(payload["input_profile"].get("sidecars", {}).keys()),
         "Top recommendations:",
     ]
     for index, item in enumerate(payload["recommendations"], start=1):
@@ -1345,8 +1495,9 @@ def render_text(payload: dict[str, Any]) -> str:
 
 def build_payload(args: argparse.Namespace) -> dict[str, Any]:
     input_path = Path(args.input).expanduser().resolve()
+    sidecar_dir = Path(args.sidecar_dir).expanduser().resolve() if args.sidecar_dir else None
     contracts_path = Path(args.contracts).expanduser().resolve() if args.contracts else DEFAULT_CONTRACTS
-    profile = build_profile(input_path)
+    profile = build_profile(input_path, sidecar_dir)
     contracts = load_contracts(contracts_path)
     recommendations = recommend(profile, contracts, args.query, args.mode, args.top)
     return {
@@ -1370,6 +1521,10 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     )
     parser.add_argument("--top", type=int, default=4, help="Number of recommendations to return.")
     parser.add_argument("--contracts", help="Override template_contracts.json path.")
+    parser.add_argument(
+        "--sidecar-dir",
+        help="Optional directory containing companion files such as nodes.tsv, links.tsv, rowInfo.tsv, or cytoband.tsv.",
+    )
     parser.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
     return parser.parse_args(argv)
 

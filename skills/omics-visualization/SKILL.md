@@ -54,9 +54,13 @@ philosophy unless the user gives journal-specific submission rules.
 
    The router uses [references/template_contracts.json](references/template_contracts.json)
    to profile generic entities, features, items, categories, supplied
-   associations, and significance columns. It must not rely on gene-specific
-   routing rules. A high-confidence result is a shortlist, not permission to
-   skip the selected catalog entry and script.
+   associations, and significance columns. It also scans recognized companion
+   files in the input directory, such as `nodes.tsv`, `links.tsv`,
+   `rowInfo.tsv`, `colInfo.tsv`, `enrichment.tsv`, `cytoband.tsv`,
+   `domains.tsv`, and `karyotype.tsv`; use `--sidecar-dir` when those files
+   live elsewhere. It must not rely on gene-specific routing rules. A
+   high-confidence result is a shortlist, not permission to skip the selected
+   catalog entry and script.
 5. If the router is low confidence, if several viable templates would change
    the scientific reading, or if the output is publication-critical, read
    [references/plots.yaml](references/plots.yaml) and then only the relevant
