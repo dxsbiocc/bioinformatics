@@ -267,6 +267,7 @@ def summarize_profile(profile: JsonObject) -> JsonObject:
         "sidecar_dir": profile.get("sidecar_dir", ""),
         "sidecars": list(profile.get("sidecars", {}).keys()),
         "sidecar_shapes": profile.get("sidecar_shapes", []),
+        "sidecar_alignment": profile.get("sidecar_alignment", {"status": "not_checked", "checks": []}),
         "role_mapping": profile.get("role_mapping", {}),
         "sidecar_role_mapping": profile.get("sidecar_role_mapping", {}),
         "numeric_columns": profile.get("numeric_columns", []),

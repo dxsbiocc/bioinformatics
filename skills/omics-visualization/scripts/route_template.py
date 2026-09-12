@@ -65,6 +65,24 @@ SIDECAR_ROLE_EXPORTS = {
     "zoom_end",
     "zoom_start",
 }
+SIDECAR_DEPENDENT_SHAPES = {
+    "annotation_sidecars",
+    "enrichment_sidecar",
+    "enrichment_zoom_sidecars",
+    "genomic_annotation_sidecars",
+    "node_link_sidecars",
+    "protein_domain_sidecar",
+    "synteny_sidecars",
+}
+SIDECAR_SHAPE_INTENT_KEYWORDS = {
+    "annotation_sidecars": ("annotation", "annotated", "grouped", "注释", "分组"),
+    "enrichment_sidecar": ("enrichment", "pathway", "go", "kegg", "富集", "通路"),
+    "enrichment_zoom_sidecars": ("enrichment", "zoom", "aligned", "pathway", "富集", "通路", "对齐"),
+    "genomic_annotation_sidecars": ("genomic", "locus", "coverage", "track", "基因组", "位点"),
+    "node_link_sidecars": ("node", "link", "edge", "network", "graph", "节点", "连边", "网络"),
+    "protein_domain_sidecar": ("protein", "domain", "residue", "lollipop", "蛋白", "结构域"),
+    "synteny_sidecars": ("synteny", "homology", "assembly", "共线性", "同源"),
+}
 
 ROLE_HINTS: dict[str, tuple[str, ...]] = {
     "focal_entity": (
@@ -1012,6 +1030,238 @@ def collect_sidecar_role_mapping(sidecars: dict[str, dict[str, Any]]) -> dict[st
     return role_mapping
 
 
+def unique_values(rows: list[dict[str, str]], column: str) -> set[str]:
+    return {value for value in column_values(rows, column)}
+
+
+def first_identifier_column(
+    headers: list[str],
+    rows: list[dict[str, str]],
+    mapping: dict[str, str],
+    preferred_roles: tuple[str, ...],
+) -> str:
+    for role in preferred_roles:
+        column = mapping.get(role)
+        if column and unique_values(rows, column):
+            return column
+    summaries = {header: numeric_summary(rows, header) for header in headers}
+    for header in headers:
+        if not summaries[header]["is_numeric"] and unique_values(rows, header):
+            return header
+    return headers[0] if headers else ""
+
+
+def alignment_status(
+    relationship: str,
+    overlap_count: int,
+    sidecar_count: int,
+    reference_count: int,
+    missing_count: int,
+    reference_coverage: float,
+) -> str:
+    if sidecar_count == 0 or reference_count == 0:
+        return "skipped"
+    if overlap_count == 0:
+        return "error"
+    if missing_count > 0:
+        return "warning"
+    if relationship == "matrix_columns" and reference_coverage < 0.8:
+        return "warning"
+    return "ok"
+
+
+def alignment_check(
+    *,
+    sidecar: str,
+    relationship: str,
+    sidecar_column: str,
+    sidecar_values: set[str],
+    reference: str,
+    reference_values: set[str],
+) -> dict[str, Any]:
+    overlap = sidecar_values & reference_values
+    missing = sidecar_values - reference_values
+    extra = reference_values - sidecar_values
+    sidecar_count = len(sidecar_values)
+    reference_count = len(reference_values)
+    overlap_count = len(overlap)
+    sidecar_coverage = round(overlap_count / sidecar_count, 3) if sidecar_count else 0.0
+    reference_coverage = round(overlap_count / reference_count, 3) if reference_count else 0.0
+    status = alignment_status(
+        relationship,
+        overlap_count,
+        sidecar_count,
+        reference_count,
+        len(missing),
+        reference_coverage,
+    )
+    message = (
+        f"{sidecar} {sidecar_column} overlaps {overlap_count}/{sidecar_count} "
+        f"sidecar IDs and {overlap_count}/{reference_count} reference IDs"
+    )
+    if status == "error":
+        message = f"{sidecar} {sidecar_column} has no overlap with {reference}"
+    elif status == "warning":
+        message = f"{sidecar} {sidecar_column} is only partially aligned with {reference}"
+    return {
+        "sidecar": sidecar,
+        "relationship": relationship,
+        "sidecar_column": sidecar_column,
+        "reference": reference,
+        "sidecar_count": sidecar_count,
+        "reference_count": reference_count,
+        "overlap_count": overlap_count,
+        "sidecar_coverage": sidecar_coverage,
+        "reference_coverage": reference_coverage,
+        "missing_count": len(missing),
+        "extra_count": len(extra),
+        "missing_examples": sorted(missing)[:5],
+        "extra_examples": sorted(extra)[:5],
+        "status": status,
+        "message": message,
+    }
+
+
+def sidecar_profile_rows(profile: dict[str, Any]) -> tuple[list[str], list[dict[str, str]]]:
+    path = Path(str(profile.get("path", "")))
+    if not path:
+        return [], []
+    headers, rows, _total = read_rows(path, limit=5000)
+    return headers, rows
+
+
+def sidecar_by_stem(sidecars: dict[str, dict[str, Any]]) -> dict[str, tuple[str, dict[str, Any]]]:
+    return {normalize(Path(filename).stem): (filename, profile) for filename, profile in sidecars.items()}
+
+
+def evaluate_sidecar_alignment(
+    input_path: Path,
+    headers: list[str],
+    rows: list[dict[str, str]],
+    mapping: dict[str, str],
+    details: dict[str, Any],
+    sidecars: dict[str, dict[str, Any]],
+) -> dict[str, Any]:
+    checks: list[dict[str, Any]] = []
+    if not sidecars:
+        return {"status": "not_checked", "checks": []}
+
+    main_row_column = first_identifier_column(
+        headers,
+        rows,
+        mapping,
+        ("target_entity", "axis_entity", "focal_entity", "pair_id", "category", "source_entity", "parent_entity"),
+    )
+    main_row_ids = unique_values(rows, main_row_column) if main_row_column else set()
+    matrix_column_ids = {column for column in details.get("numeric_columns", []) if column in headers}
+    by_stem = sidecar_by_stem(sidecars)
+
+    for stem in ("rowinfo", "annot"):
+        if stem not in by_stem or not main_row_ids:
+            continue
+        filename, profile = by_stem[stem]
+        sidecar_headers, sidecar_rows = sidecar_profile_rows(profile)
+        sidecar_mapping = profile.get("role_mapping", {}) if isinstance(profile.get("role_mapping"), dict) else {}
+        sidecar_column = first_identifier_column(
+            sidecar_headers,
+            sidecar_rows,
+            sidecar_mapping,
+            ("target_entity", "axis_entity", "focal_entity", "pair_id", "category"),
+        )
+        if sidecar_column:
+            checks.append(
+                alignment_check(
+                    sidecar=filename,
+                    relationship="matrix_rows",
+                    sidecar_column=sidecar_column,
+                    sidecar_values=unique_values(sidecar_rows, sidecar_column),
+                    reference=f"{input_path.name}:{main_row_column}",
+                    reference_values=main_row_ids,
+                )
+            )
+
+    if "colinfo" in by_stem and matrix_column_ids:
+        filename, profile = by_stem["colinfo"]
+        sidecar_headers, sidecar_rows = sidecar_profile_rows(profile)
+        sidecar_mapping = profile.get("role_mapping", {}) if isinstance(profile.get("role_mapping"), dict) else {}
+        sidecar_column = first_identifier_column(
+            sidecar_headers,
+            sidecar_rows,
+            sidecar_mapping,
+            ("pair_id", "target_entity", "axis_entity", "category"),
+        )
+        if sidecar_column:
+            checks.append(
+                alignment_check(
+                    sidecar=filename,
+                    relationship="matrix_columns",
+                    sidecar_column=sidecar_column,
+                    sidecar_values=unique_values(sidecar_rows, sidecar_column),
+                    reference=f"{input_path.name}:numeric columns",
+                    reference_values=matrix_column_ids,
+                )
+            )
+
+    node_ids: set[str] = set()
+    node_reference = ""
+    input_stem = normalize(input_path.stem)
+    if input_stem == "nodes" and main_row_ids:
+        node_ids = main_row_ids
+        node_reference = f"{input_path.name}:{main_row_column}"
+    elif "nodes" in by_stem:
+        filename, profile = by_stem["nodes"]
+        sidecar_headers, sidecar_rows = sidecar_profile_rows(profile)
+        sidecar_mapping = profile.get("role_mapping", {}) if isinstance(profile.get("role_mapping"), dict) else {}
+        sidecar_column = first_identifier_column(
+            sidecar_headers,
+            sidecar_rows,
+            sidecar_mapping,
+            ("target_entity", "axis_entity", "focal_entity", "pair_id", "category", "source_entity"),
+        )
+        if sidecar_column:
+            node_ids = unique_values(sidecar_rows, sidecar_column)
+            node_reference = f"{filename}:{sidecar_column}"
+
+    for stem in ("links", "edges"):
+        if stem not in by_stem or not node_ids:
+            continue
+        filename, profile = by_stem[stem]
+        sidecar_headers, sidecar_rows = sidecar_profile_rows(profile)
+        sidecar_mapping = profile.get("role_mapping", {}) if isinstance(profile.get("role_mapping"), dict) else {}
+        source_column = sidecar_mapping.get("source_entity")
+        target_column = sidecar_mapping.get("target_entity")
+        if source_column and target_column:
+            endpoint_values = unique_values(sidecar_rows, source_column) | unique_values(sidecar_rows, target_column)
+            checks.append(
+                alignment_check(
+                    sidecar=filename,
+                    relationship="node_link_endpoints",
+                    sidecar_column=f"{source_column},{target_column}",
+                    sidecar_values=endpoint_values,
+                    reference=node_reference,
+                    reference_values=node_ids,
+                )
+            )
+
+    statuses = {check["status"] for check in checks}
+    if "error" in statuses:
+        status = "error"
+    elif "warning" in statuses:
+        status = "warning"
+    elif checks:
+        status = "ok"
+    else:
+        status = "not_checked"
+    return {"status": status, "checks": checks}
+
+
+def sidecar_alignment_messages(profile: dict[str, Any], limit: int = 3) -> list[str]:
+    alignment = profile.get("sidecar_alignment", {})
+    checks = alignment.get("checks", []) if isinstance(alignment, dict) else []
+    messages = [check.get("message", "") for check in checks if check.get("status") in {"warning", "error"}]
+    return [message for message in messages if message][:limit]
+
+
 def sidecar_shapes(sidecars: dict[str, dict[str, Any]], input_stem: str = "") -> set[str]:
     shapes: set[str] = set()
     stems = {normalize(Path(filename).stem) for filename in sidecars}
@@ -1301,6 +1551,7 @@ def build_profile(path: Path, sidecar_dir: Path | None = None) -> dict[str, Any]
     detected_sidecar_shapes = sidecar_shapes(sidecars, normalize(path.stem))
     shapes.update(detected_sidecar_shapes)
     sidecar_role_mapping = collect_sidecar_role_mapping(sidecars)
+    sidecar_alignment = evaluate_sidecar_alignment(path, headers, rows, mapping, details, sidecars)
     return {
         "path": str(path),
         "row_count": total_rows,
@@ -1312,6 +1563,7 @@ def build_profile(path: Path, sidecar_dir: Path | None = None) -> dict[str, Any]
         "sidecars": sidecars,
         "sidecar_shapes": sorted(detected_sidecar_shapes),
         "sidecar_role_mapping": sidecar_role_mapping,
+        "sidecar_alignment": sidecar_alignment,
         "shapes": sorted(shapes),
         **details,
     }
@@ -1331,6 +1583,7 @@ def score_template(template: dict[str, Any], profile: dict[str, Any], query: str
     score = 0
     rationale: list[str] = []
     risks: list[str] = []
+    confidence_cap = ""
 
     template_id = template["id"]
     exact_id = template_id.lower() in query.lower()
@@ -1394,6 +1647,29 @@ def score_template(template: dict[str, Any], profile: dict[str, Any], query: str
             }
             score += sum(decisive_shape_weights.get(shape, 10) for shape in decisive_shapes)
             rationale.append(f"decisive shape match: {', '.join(decisive_shapes)}")
+
+        sidecar_intent_hits: list[str] = []
+        for shape in sorted(set(matched_shapes) & SIDECAR_DEPENDENT_SHAPES):
+            for keyword in SIDECAR_SHAPE_INTENT_KEYWORDS.get(shape, ()):
+                if contains_keyword(query, keyword):
+                    sidecar_intent_hits.append(f"{shape}:{keyword}")
+        if sidecar_intent_hits:
+            score += min(24, 8 * len(sidecar_intent_hits))
+            rationale.append("sidecar intent match: " + ", ".join(sidecar_intent_hits[:5]))
+
+        sidecar_status = profile.get("sidecar_alignment", {}).get("status")
+        if set(matched_shapes) & SIDECAR_DEPENDENT_SHAPES and sidecar_status in {"warning", "error"}:
+            if sidecar_status == "error":
+                score -= 28
+                confidence_cap = "low"
+            else:
+                score -= 12
+                confidence_cap = "medium"
+            messages = sidecar_alignment_messages(profile)
+            if messages:
+                risks.append("sidecar alignment issue: " + "; ".join(messages))
+            else:
+                risks.append(f"sidecar alignment status is {sidecar_status}")
     else:
         score -= 18
         risks.append("no preferred input shape matched the table profile")
@@ -1445,6 +1721,10 @@ def score_template(template: dict[str, Any], profile: dict[str, Any], query: str
         confidence = "medium"
     else:
         confidence = "low"
+    if confidence_cap:
+        confidence_rank = {"low": 0, "medium": 1, "high": 2}
+        if confidence_rank[confidence] > confidence_rank[confidence_cap]:
+            confidence = confidence_cap
 
     return {
         "id": template_id,
@@ -1477,6 +1757,7 @@ def render_text(payload: dict[str, Any]) -> str:
         f"Rows x columns: {payload['input_profile']['row_count']} x {payload['input_profile']['column_count']}",
         "Detected shapes: " + ", ".join(payload["input_profile"]["shapes"]),
         "Sidecars: " + ", ".join(payload["input_profile"].get("sidecars", {}).keys()),
+        "Sidecar alignment: " + payload["input_profile"].get("sidecar_alignment", {}).get("status", "not_checked"),
         "Top recommendations:",
     ]
     for index, item in enumerate(payload["recommendations"], start=1):

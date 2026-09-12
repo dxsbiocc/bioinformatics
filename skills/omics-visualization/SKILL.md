@@ -58,9 +58,13 @@ philosophy unless the user gives journal-specific submission rules.
    files in the input directory, such as `nodes.tsv`, `links.tsv`,
    `rowInfo.tsv`, `colInfo.tsv`, `enrichment.tsv`, `cytoband.tsv`,
    `domains.tsv`, and `karyotype.tsv`; use `--sidecar-dir` when those files
-   live elsewhere. It must not rely on gene-specific routing rules. A
-   high-confidence result is a shortlist, not permission to skip the selected
-   catalog entry and script.
+   live elsewhere. The router reports `sidecar_alignment` for reusable ID
+   relationships such as matrix rows to row annotations, matrix columns to
+   sample annotations, and node IDs to link endpoints. Alignment warnings lower
+   sidecar-dependent template confidence; they do not authorize silent
+   filtering, reordering, imputation, or upstream statistical analysis. It must
+   not rely on gene-specific routing rules. A high-confidence result is a
+   shortlist, not permission to skip the selected catalog entry and script.
 5. If the router is low confidence, if several viable templates would change
    the scientific reading, or if the output is publication-critical, read
    [references/plots.yaml](references/plots.yaml) and then only the relevant

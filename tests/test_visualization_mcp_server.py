@@ -156,6 +156,51 @@ class VisualizationMcpServerTests(unittest.TestCase):
         self.assertEqual(payload["selected"]["id"], "heatmap-enrichment-zoom")
         self.assertIn("enrichment_zoom_sidecars", payload["input_profile_summary"]["sidecar_shapes"])
         self.assertEqual(sorted(payload["input_profile_summary"]["sidecars"]), ["colInfo.tsv", "enrichment.tsv", "rowInfo.tsv"])
+        self.assertEqual(payload["input_profile_summary"]["sidecar_alignment"]["status"], "ok")
+        assert_result_frontend_contract(
+            self,
+            payload,
+            expected_components={"dataset"},
+            required_preview_kinds={"table"},
+        )
+
+    def test_route_tool_reports_sidecar_alignment_warnings(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = pathlib.Path(tmpdir)
+            table_path = root / "expression.tsv"
+            table_path.write_text(
+                "\n".join(
+                    [
+                        "gene\tN1\tN2\tT1\tT2",
+                        "G1\t1\t2\t5\t6",
+                        "G2\t2\t1\t4\t5",
+                        "G3\t5\t6\t1\t2",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (root / "rowInfo.tsv").write_text("gene\tdirect\nX1\tUp\nX2\tDown\n", encoding="utf-8")
+            (root / "colInfo.tsv").write_text("sample\tgroup\nN1\tNormal\nN2\tNormal\nT1\tTumor\nT2\tTumor\n", encoding="utf-8")
+            (root / "enrichment.tsv").write_text(
+                "database\tChange\tDescription\tp.adjust\nGO\tUp\tcell cycle\t0.001\n",
+                encoding="utf-8",
+            )
+            payload = self.call_tool(
+                "omics_visualization_route",
+                {
+                    "table_path": str(table_path),
+                    "query": "DE expression heatmap with aligned enrichment zooms",
+                    "top": 3,
+                    "include_profile": False,
+                },
+            )
+        alignment = payload["input_profile_summary"]["sidecar_alignment"]
+        self.assertEqual(alignment["status"], "error")
+        self.assertNotIn("input_profile", payload)
+        selected = payload["selected"]
+        self.assertEqual(selected["id"], "heatmap-enrichment-zoom")
+        self.assertNotEqual(selected["confidence"], "high")
+        self.assertTrue(any("sidecar alignment" in risk for risk in selected["risks"]))
         assert_result_frontend_contract(
             self,
             payload,

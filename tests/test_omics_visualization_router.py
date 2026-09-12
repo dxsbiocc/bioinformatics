@@ -554,6 +554,105 @@ class OmicsVisualizationRouterTests(unittest.TestCase):
         payload = json.loads(proc.stdout)
         self.assertEqual(payload["recommendations"][0]["id"], "heatmap-enrichment-zoom")
         self.assertIn("enrichment_zoom_sidecars", payload["input_profile"]["sidecar_shapes"])
+        alignment = payload["input_profile"]["sidecar_alignment"]
+        self.assertEqual(alignment["status"], "ok")
+        self.assertEqual(
+            {(check["sidecar"], check["relationship"]) for check in alignment["checks"]},
+            {("colInfo.tsv", "matrix_columns"), ("rowInfo.tsv", "matrix_rows")},
+        )
+
+    def test_misaligned_expression_sidecars_reduce_route_confidence(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = pathlib.Path(tmpdir)
+            table = root / "expression.tsv"
+            table.write_text(
+                "\n".join(
+                    [
+                        "gene\tN1\tN2\tT1\tT2",
+                        "G1\t1\t2\t5\t6",
+                        "G2\t2\t1\t4\t5",
+                        "G3\t5\t6\t1\t2",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (root / "rowInfo.tsv").write_text("gene\tdirect\nX1\tUp\nX2\tDown\n", encoding="utf-8")
+            (root / "colInfo.tsv").write_text("sample\tgroup\nN1\tNormal\nX2\tOther\n", encoding="utf-8")
+            (root / "enrichment.tsv").write_text(
+                "database\tChange\tDescription\tp.adjust\nGO\tUp\tcell cycle\t0.001\nGO\tDown\tcell death\t0.02\n",
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROUTER),
+                    "--input",
+                    str(table),
+                    "--query",
+                    "DE expression heatmap with aligned enrichment zooms",
+                    "--json",
+                ],
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+        payload = json.loads(proc.stdout)
+        alignment = payload["input_profile"]["sidecar_alignment"]
+        self.assertEqual(alignment["status"], "error")
+        row_check = next(check for check in alignment["checks"] if check["sidecar"] == "rowInfo.tsv")
+        self.assertEqual(row_check["status"], "error")
+        self.assertEqual(row_check["overlap_count"], 0)
+        top = payload["recommendations"][0]
+        if top["id"] == "heatmap-enrichment-zoom":
+            self.assertNotEqual(top["confidence"], "high")
+            self.assertTrue(any("sidecar alignment" in risk for risk in top["risks"]))
+
+    def test_node_link_sidecars_report_endpoint_alignment(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = pathlib.Path(tmpdir)
+            nodes = root / "nodes.tsv"
+            nodes.write_text(
+                "\n".join(
+                    [
+                        "name\tx\ty\tgroup",
+                        "A\t0\t0\tmodule_1",
+                        "B\t1\t1\tmodule_1",
+                        "C\t2\t0\tmodule_2",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            (root / "links.tsv").write_text(
+                "\n".join(
+                    [
+                        "source\ttarget\tvalue",
+                        "A\tB\t1.0",
+                        "A\tD\t0.5",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    str(ROUTER),
+                    "--input",
+                    str(nodes),
+                    "--query",
+                    "basic node-link network with supplied node coordinates",
+                    "--json",
+                ],
+                check=True,
+                text=True,
+                capture_output=True,
+            )
+        payload = json.loads(proc.stdout)
+        alignment = payload["input_profile"]["sidecar_alignment"]
+        self.assertEqual(alignment["status"], "warning")
+        link_check = next(check for check in alignment["checks"] if check["sidecar"] == "links.tsv")
+        self.assertEqual(link_check["relationship"], "node_link_endpoints")
+        self.assertEqual(link_check["missing_count"], 1)
+        self.assertEqual(link_check["missing_examples"], ["D"])
 
     def test_genomic_locus_table_routes_to_ideogram_loci(self) -> None:
         payload = self.run_router(

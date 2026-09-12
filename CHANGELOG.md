@@ -32,6 +32,9 @@
 - Sidecar-aware visualization routing for recognized companion files such as
   `nodes.tsv`, `links.tsv`, `rowInfo.tsv`, `colInfo.tsv`, `enrichment.tsv`,
   `cytoband.tsv`, `domains.tsv`, and `karyotype.tsv`.
+- Sidecar alignment checks that compare reusable ID relationships such as
+  matrix rows to `rowInfo.tsv`, matrix columns to `colInfo.tsv`, and node IDs
+  to `links.tsv`/`edges.tsv` endpoints.
 - Plugin source hygiene regression test that blocks local transient artifacts
   such as system cache files, R plotting scratch output, and top-level result
   folders from entering the plugin package.
@@ -63,6 +66,10 @@
   sidecar-derived shapes, and sidecar role mappings when companion files are
   present; this is still metadata-only routing and does not compute upstream
   statistics.
+- Sidecar-dependent template recommendations are now confidence-capped and
+  annotated with risks when companion identifiers do not align with the main
+  table; the router reports the issue but does not silently filter, reorder, or
+  repair user data.
 
 ## 0.1.0 - NCBI MCP Baseline - 2026-09-08
 
