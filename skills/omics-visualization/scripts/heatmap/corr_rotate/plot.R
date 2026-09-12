@@ -703,22 +703,21 @@ p <- p +
         legend.position = "none"
     )
 
-# Manual discrete legends: vertically mid-right of the triangle,
-# outside the slanted correlation bar.
+# Manual discrete legends: mid-right of the triangle, outside the
+# slanted correlation bar.
 if (length(ann_guides) >= 1L) {
-    n_lines <- 0
-    for (tr in names(ann_guides)) {
-        n_lines <- n_lines + 1L + length(ann_guides[[tr]]) + 1L
-    }
-    stack_h <- n_lines * 0.38
+    n_title <- length(ann_guides)
+    n_keys <- sum(vapply(ann_guides, length, integer(1)))
+    # Match the yi steps used below (0.38 per row + 0.35 between groups).
+    stack_h <- (n_title + n_keys) * 0.38 + n_title * 0.35
     unit_s <- pos_to_s(pos[[1]] + 1) - pos_to_s(pos[[1]])
     # Past colorbar body, tick labels, and "Correlation" title.
     leg_off <- as.numeric(config$geometry$tile_s) + 0.55 +
         unit_s * 0.36 + unit_s * 4.0
     mid_edge <- (apex + right0) / 2
-    # Keep y at mid-edge height; only push outward in x via r_out.
+    # Center on mid-edge, then nudge up so the block reads as mid-right.
     x0 <- mid_edge[[1]] + leg_off * r_out[[1]]
-    y0 <- mid_edge[[2]] + stack_h / 2
+    y0 <- mid_edge[[2]] + stack_h / 2 + 1.1
     leg_rows <- list()
     yi <- 0
     for (tr in names(ann_guides)) {
