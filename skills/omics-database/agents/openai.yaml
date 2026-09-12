@@ -1,0 +1,5 @@
+interface:
+  display_name: "Omics Database"
+  short_description: "Retrieve bioinformatics records and dataset metadata"
+  brand_color: "#6F8F72"
+  default_prompt: "Use $omics-database to find and verify the authoritative database records for these biological identifiers."

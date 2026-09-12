@@ -1,0 +1,1 @@
+"""PubChem MCP server package."""

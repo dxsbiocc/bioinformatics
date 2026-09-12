@@ -1,0 +1,2 @@
+"""ClinVar MCP package."""
+

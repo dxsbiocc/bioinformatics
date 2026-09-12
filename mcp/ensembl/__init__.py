@@ -1,0 +1,2 @@
+"""Ensembl MCP package."""
+

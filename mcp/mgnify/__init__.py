@@ -1,0 +1,2 @@
+"""MGnify MCP server package."""
+

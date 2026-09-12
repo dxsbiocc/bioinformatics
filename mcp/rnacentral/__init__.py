@@ -1,0 +1,2 @@
+"""RNAcentral MCP package."""
+

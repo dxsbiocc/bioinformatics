@@ -1,0 +1,5 @@
+interface:
+  display_name: "Omics Pipeline"
+  short_description: "Build reproducible pipelines for sequencing data"
+  brand_color: "#6F8F72"
+  default_prompt: "Use $omics-pipeline to design and run a reproducible workflow for these sequencing inputs."

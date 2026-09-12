@@ -1,0 +1,5 @@
+interface:
+  display_name: "Omics Analysis"
+  short_description: "Analyze prepared omics matrices and result tables"
+  brand_color: "#6F8F72"
+  default_prompt: "Use $omics-analysis to analyze these prepared omics measurements with their sample metadata."

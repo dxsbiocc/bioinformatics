@@ -1,0 +1,363 @@
+{
+  "mcpServers": {
+    "ncbi": {
+      "command": "python3",
+      "args": [
+        "./mcp/ncbi/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "NCBI_API_KEY",
+        "ENTREZ_API_KEY",
+        "NCBI_EMAIL",
+        "ENTREZ_EMAIL",
+        "NCBI_TOOL"
+      ]
+    },
+    "biorxiv": {
+      "command": "python3",
+      "args": [
+        "./mcp/biorxiv/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "BIORXIV_API_BASE_URL",
+        "BIORXIV_CONTACT",
+        "MEDRXIV_CONTACT",
+        "BIORXIV_TOOL"
+      ]
+    },
+    "rnacentral": {
+      "command": "python3",
+      "args": [
+        "./mcp/rnacentral/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "RNACENTRAL_API_BASE_URL",
+        "RNACENTRAL_CONTACT",
+        "RNACENTRAL_TOOL"
+      ]
+    },
+    "efo": {
+      "command": "python3",
+      "args": [
+        "./mcp/efo/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "EFO_OLS4_API_BASE_URL",
+        "EFO_OLS4_WEBSITE_BASE_URL",
+        "EFO_CONTACT",
+        "EFO_TOOL"
+      ]
+    },
+    "uniprot": {
+      "command": "python3",
+      "args": [
+        "./mcp/uniprot/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "UNIPROT_BASE_URL",
+        "UNIPROT_CONTACT",
+        "UNIPROT_TOOL"
+      ]
+    },
+    "alphafold": {
+      "command": "python3",
+      "args": [
+        "./mcp/alphafold/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "ALPHAFOLD_BASE_URL",
+        "ALPHAFOLD_CONTACT",
+        "ALPHAFOLD_TOOL"
+      ]
+    },
+    "string": {
+      "command": "python3",
+      "args": [
+        "./mcp/stringdb/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "STRING_BASE_URL",
+        "STRING_CALLER_IDENTITY",
+        "STRING_CONTACT",
+        "STRING_TOOL"
+      ]
+    },
+    "rcsb": {
+      "command": "python3",
+      "args": [
+        "./mcp/rcsb/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "RCSB_DATA_BASE_URL",
+        "RCSB_SEARCH_BASE_URL",
+        "RCSB_WEBSITE_BASE_URL",
+        "RCSB_FILES_BASE_URL",
+        "RCSB_CONTACT",
+        "RCSB_TOOL"
+      ]
+    },
+    "reactome": {
+      "command": "python3",
+      "args": [
+        "./mcp/reactome/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "REACTOME_BASE_URL",
+        "REACTOME_WEBSITE_BASE_URL",
+        "REACTOME_CONTACT",
+        "REACTOME_TOOL"
+      ]
+    },
+    "ensembl": {
+      "command": "python3",
+      "args": [
+        "./mcp/ensembl/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "ENSEMBL_BASE_URL",
+        "ENSEMBL_WEBSITE_BASE_URL",
+        "ENSEMBL_CONTACT",
+        "ENSEMBL_TOOL"
+      ]
+    },
+    "clinvar": {
+      "command": "python3",
+      "args": [
+        "./mcp/clinvar/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "CLINVAR_CLINICAL_TABLES_URL",
+        "CLINVAR_EUTILS_BASE_URL",
+        "CLINVAR_NCBI_WEBSITE_BASE_URL",
+        "CLINVAR_API_KEY",
+        "CLINVAR_EMAIL",
+        "CLINVAR_TOOL"
+      ]
+    },
+    "gnomad": {
+      "command": "python3",
+      "args": [
+        "./mcp/gnomad/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "GNOMAD_GRAPHQL_URL",
+        "GNOMAD_WEBSITE_BASE_URL",
+        "GNOMAD_CONTACT",
+        "GNOMAD_TOOL"
+      ]
+    },
+    "gwas": {
+      "command": "python3",
+      "args": [
+        "./mcp/gwas/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "GWAS_REST_BASE_URL",
+        "GWAS_WEBSITE_BASE_URL",
+        "GWAS_CONTACT",
+        "GWAS_TOOL"
+      ]
+    },
+    "opentargets": {
+      "command": "python3",
+      "args": [
+        "./mcp/opentargets/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "OPENTARGETS_GRAPHQL_URL",
+        "OPENTARGETS_WEBSITE_BASE_URL",
+        "OPENTARGETS_CONTACT",
+        "OPENTARGETS_TOOL"
+      ]
+    },
+    "chembl": {
+      "command": "python3",
+      "args": [
+        "./mcp/chembl/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "CHEMBL_REST_BASE_URL",
+        "CHEMBL_WEBSITE_BASE_URL",
+        "CHEMBL_CONTACT",
+        "CHEMBL_TOOL"
+      ]
+    },
+        "pubchem": {
+            "command": "python3",
+            "args": [
+                "./mcp/pubchem/server.py"
+            ],
+      "cwd": ".",
+      "env_vars": [
+        "PUBCHEM_PUG_BASE_URL",
+        "PUBCHEM_WEBSITE_BASE_URL",
+        "PUBCHEM_CONTACT",
+                "PUBCHEM_TOOL"
+            ]
+        },
+        "chebi": {
+            "command": "python3",
+            "args": [
+                "./mcp/chebi/server.py"
+            ],
+            "cwd": ".",
+            "env_vars": [
+                "CHEBI_API_BASE_URL",
+                "CHEBI_WEBSITE_BASE_URL",
+                "CHEBI_CONTACT",
+                "CHEBI_TOOL"
+            ]
+        },
+        "quickgo": {
+            "command": "python3",
+            "args": [
+                "./mcp/quickgo/server.py"
+            ],
+      "cwd": ".",
+      "env_vars": [
+        "QUICKGO_API_BASE_URL",
+        "QUICKGO_WEBSITE_BASE_URL",
+        "QUICKGO_CONTACT",
+        "QUICKGO_TOOL"
+      ]
+    },
+    "pride": {
+      "command": "python3",
+      "args": [
+        "./mcp/pride/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "PRIDE_API_BASE_URL",
+        "PRIDE_WEBSITE_BASE_URL",
+        "PRIDE_CONTACT",
+        "PRIDE_TOOL"
+      ]
+    },
+    "biostudies": {
+      "command": "python3",
+      "args": [
+        "./mcp/biostudies/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "BIOSTUDIES_API_BASE_URL",
+        "BIOSTUDIES_WEBSITE_BASE_URL",
+        "BIOSTUDIES_CONTACT",
+        "BIOSTUDIES_TOOL"
+      ]
+    },
+    "cellxgene": {
+      "command": "python3",
+      "args": [
+        "./mcp/cellxgene/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "CELLXGENE_API_BASE_URL",
+        "CELLXGENE_WEBSITE_BASE_URL",
+        "CELLXGENE_CONTACT",
+        "CELLXGENE_TOOL"
+      ]
+    },
+    "hpa": {
+      "command": "python3",
+      "args": [
+        "./mcp/hpa/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "HPA_BASE_URL",
+        "HPA_CONTACT",
+        "HPA_TOOL"
+      ]
+    },
+    "metabolights": {
+      "command": "python3",
+      "args": [
+        "./mcp/metabolights/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "METABOLIGHTS_WS_BASE_URL",
+        "METABOLIGHTS_WEBSITE_BASE_URL",
+        "EBI_SEARCH_BASE_URL",
+        "METABOLIGHTS_CONTACT",
+        "METABOLIGHTS_TOOL"
+      ]
+    },
+    "hmdb": {
+      "command": "python3",
+      "args": [
+        "./mcp/hmdb/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "HMDB_BASE_URL",
+        "HMDB_CONTACT",
+        "HMDB_TOOL"
+      ]
+    },
+    "mgnify": {
+      "command": "python3",
+      "args": [
+        "./mcp/mgnify/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "MGNIFY_API_BASE_URL",
+        "MGNIFY_WEBSITE_BASE_URL",
+        "MGNIFY_CONTACT",
+        "MGNIFY_TOOL"
+      ]
+    },
+    "encode": {
+      "command": "python3",
+      "args": [
+        "./mcp/encode/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "ENCODE_BASE_URL",
+        "ENCODE_CONTACT",
+        "ENCODE_TOOL"
+      ]
+    },
+    "cbioportal": {
+      "command": "python3",
+      "args": [
+        "./mcp/cbioportal/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "CBIOPORTAL_API_BASE_URL",
+        "CBIOPORTAL_WEBSITE_BASE_URL",
+        "CBIOPORTAL_CONTACT",
+        "CBIOPORTAL_TOOL"
+      ]
+    },
+    "visualization": {
+      "command": "python3",
+      "args": [
+        "./mcp/visualization/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": []
+    }
+  }
+}

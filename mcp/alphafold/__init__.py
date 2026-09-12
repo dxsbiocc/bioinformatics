@@ -1,0 +1,2 @@
+"""AlphaFold DB MCP package."""
+

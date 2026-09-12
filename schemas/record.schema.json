@@ -1,0 +1,499 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex.local/bioinformatics/schemas/record.schema.json",
+  "title": "Bioinformatics MCP record result",
+  "description": "Stable result envelope for MCP tools that return UI-renderable bioinformatics records.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Result envelope schema version, for example bioinformatics.ncbi.result.v1."
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "source": {
+      "$ref": "#/$defs/provenance"
+    },
+    "database": {
+      "type": "string"
+    },
+    "query": {
+      "type": ["string", "null"]
+    },
+    "returned": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "records": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/record"
+      }
+    },
+    "citations": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/citation"
+      }
+    }
+  },
+  "required": ["schema_version"],
+  "$defs": {
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "endpoint": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "retrieved_at": {
+          "type": "string"
+        }
+      }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "schema_version": {
+          "type": "string",
+          "description": "Record schema version, for example bioinformatics.record.v1."
+        },
+        "type": {
+          "type": "string",
+          "description": "Broad semantic type such as literature.article, omics.dataset, omics.download_plan, omics.sample_sheet, runtime.tool, gene, or taxonomy.taxon."
+        },
+        "record_type": {
+          "type": "string",
+          "description": "Database-specific record type such as pubmed_article, geo_series, ncbi_gene, or ncbi_taxonomy."
+        },
+        "database": {
+          "type": "string"
+        },
+        "entrez_database": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "uid": {
+          "type": "string"
+        },
+        "stable_id": {
+          "type": "string",
+          "description": "Stable human-facing identifier, for example PMID:123, GSE100, GeneID:7157, or TaxID:9606."
+        },
+        "label": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "description": "Primary browser URL when one exists."
+        },
+        "icon": {
+          "type": "string"
+        },
+        "identifiers": {
+          "type": "object",
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "$ref": "#/$defs/identifier"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/identifier"
+                }
+              }
+            ]
+          }
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/link"
+          }
+        },
+        "display": {
+          "$ref": "#/$defs/display"
+        },
+        "citation": {
+          "$ref": "#/$defs/citation"
+        },
+        "related": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "schema_version",
+        "type",
+        "record_type",
+        "database",
+        "id",
+        "stable_id",
+        "label",
+        "title",
+        "url",
+        "icon",
+        "display"
+      ]
+    },
+    "display": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "component": {
+          "type": "string",
+          "description": "Renderer hint. Known values include citation, dataset, compound, protein, protein_structure, protein_network, pathway, ontology_term, gene, genomic_feature, variant, taxonomy, identifier_conversion, database, linkset, project, sample, run, download_plan, sample_sheet, and runtime_status."
+        },
+        "chip_label": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/displayField"
+          }
+        },
+        "badges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/badge"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/link"
+          }
+        },
+        "hover": {
+          "$ref": "#/$defs/hover"
+        },
+        "primary_url": {
+          "type": "string"
+        },
+        "sections": {
+          "type": "array",
+          "description": "Optional detail sections for app-side tabs, accordions, tracks, lists, or tables.",
+          "items": {
+            "$ref": "#/$defs/displaySection"
+          }
+        },
+        "previews": {
+          "type": "array",
+          "description": "Optional high-level preview hints for shared app-side renderers such as sequence, 3D structure, network, citation list, or grouped cross-reference widgets.",
+          "items": {
+            "$ref": "#/$defs/preview"
+          }
+        }
+      },
+      "required": [
+        "component",
+        "chip_label",
+        "icon",
+        "title",
+        "metadata",
+        "badges",
+        "actions",
+        "hover"
+      ]
+    },
+    "preview": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "type": "string",
+          "description": "Renderer hint such as sequence, feature_track, structure_3d, chemical_structure, network, survival_curve, heatmap_matrix, citation_list, xref_groups, download_manifest, table, or text."
+        },
+        "title": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "mime_type": {
+          "type": "string"
+        },
+        "length": {
+          "type": ["integer", "string"]
+        },
+        "primary": {
+          "type": "boolean"
+        },
+        "section_key": {
+          "type": "string"
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/link"
+          }
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": ["kind", "title"]
+    },
+    "displaySection": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "description": "Renderer hint such as fields, text, list, feature_track, xref_groups, references, or table."
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/displayField"
+          }
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "items": {
+          "type": "array"
+        },
+        "groups": {
+          "type": "array"
+        },
+        "tracks": {
+          "type": "array"
+        },
+        "summary": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": ["key", "title"]
+    },
+    "hover": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/displayField"
+          }
+        }
+      },
+      "required": ["title", "fields"]
+    },
+    "displayField": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": ["string", "number", "boolean"],
+          "description": "Renderable scalar value for metadata or hover rows."
+        }
+      },
+      "required": ["label", "value"]
+    },
+    "badge": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": ["label", "kind"]
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string",
+          "description": "Known values include external, download, and related."
+        },
+        "primary": {
+          "type": "boolean"
+        }
+      },
+      "required": ["label", "url"]
+    },
+    "identifier": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "namespace": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "required": ["namespace", "id", "label"]
+    },
+    "citation": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "schema_version": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "citation_type": {
+          "type": "string"
+        },
+        "database": {
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "stable_id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "authors": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "first_author": {
+          "type": ["string", "null"]
+        },
+        "journal": {
+          "type": "string"
+        },
+        "journal_abbreviation": {
+          "type": "string"
+        },
+        "publication_date": {
+          "type": "string"
+        },
+        "doi": {
+          "type": ["string", "null"]
+        },
+        "pmcid": {
+          "type": ["string", "null"]
+        },
+        "url": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "hover": {
+          "$ref": "#/$defs/hover"
+        },
+        "links": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/link"
+          }
+        }
+      },
+      "required": [
+        "schema_version",
+        "type",
+        "citation_type",
+        "database",
+        "id",
+        "stable_id",
+        "label",
+        "title",
+        "url",
+        "hover"
+      ]
+    }
+  }
+}

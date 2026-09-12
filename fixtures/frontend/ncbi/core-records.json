@@ -1,0 +1,567 @@
+{
+  "schema_version": "bioinformatics.ncbi.result.v1",
+  "fixture": "ncbi-core-records",
+  "description": "Stable front-end fixture for NCBI MCP renderer development.",
+  "records": [
+    {
+      "schema_version": "bioinformatics.record.v1",
+      "type": "literature.article",
+      "record_type": "pubmed_article",
+      "database": "pubmed",
+      "id": "123",
+      "stable_id": "PMID:123",
+      "label": "PMID:123",
+      "title": "Structured PubMed parsing works.",
+      "description": "Ada Lovelace. Test Journal. 2026 Jan 2",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/123/",
+      "icon": "pubmed",
+      "identifiers": {
+        "pubmed": {
+          "namespace": "pubmed",
+          "id": "123",
+          "label": "PMID:123",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/123/"
+        },
+        "doi": {
+          "namespace": "doi",
+          "id": "10.1000/test",
+          "label": "DOI:10.1000/test",
+          "url": "https://doi.org/10.1000/test"
+        }
+      },
+      "links": [
+        {
+          "label": "PubMed",
+          "url": "https://pubmed.ncbi.nlm.nih.gov/123/",
+          "kind": "external",
+          "primary": true
+        },
+        {
+          "label": "DOI",
+          "url": "https://doi.org/10.1000/test",
+          "kind": "external",
+          "primary": false
+        }
+      ],
+      "display": {
+        "component": "citation",
+        "chip_label": "PMID:123",
+        "icon": "pubmed",
+        "title": "Structured PubMed parsing works.",
+        "subtitle": "Test Journal | 2026 Jan 2",
+        "description": "Ada Lovelace. Test Journal. 2026 Jan 2",
+        "metadata": [
+          {
+            "label": "Journal",
+            "value": "Test Journal"
+          },
+          {
+            "label": "Authors",
+            "value": "Ada Lovelace"
+          },
+          {
+            "label": "DOI",
+            "value": "10.1000/test"
+          }
+        ],
+        "badges": [
+          {
+            "label": "PubMed",
+            "kind": "source"
+          },
+          {
+            "label": "PMID:123",
+            "kind": "identifier"
+          }
+        ],
+        "actions": [
+          {
+            "label": "PubMed",
+            "url": "https://pubmed.ncbi.nlm.nih.gov/123/",
+            "kind": "external",
+            "primary": true
+          }
+        ],
+        "hover": {
+          "title": "Structured PubMed parsing works.",
+          "subtitle": "Test Journal | 2026 Jan 2",
+          "icon": "pubmed",
+          "fields": [
+            {
+              "label": "Identifier",
+              "value": "PMID:123"
+            },
+            {
+              "label": "Journal",
+              "value": "Test Journal"
+            },
+            {
+              "label": "Authors",
+              "value": "Ada Lovelace"
+            }
+          ]
+        },
+                "primary_url": "https://pubmed.ncbi.nlm.nih.gov/123/",
+                "previews": [
+                    {
+                        "kind": "citation_list",
+                        "title": "Citation",
+                        "provider": "NCBI PubMed",
+                        "id": "123",
+                        "url": "https://pubmed.ncbi.nlm.nih.gov/123/",
+                        "data": {
+                            "pubmed_ids": ["123"],
+                            "doi": "10.1000/test",
+                            "journal": "Test Journal",
+                            "authors": ["Ada Lovelace"]
+                        }
+                    }
+                ]
+            },
+      "data": {
+        "pmid": "123",
+        "doi": "10.1000/test"
+      }
+    },
+    {
+      "schema_version": "bioinformatics.record.v1",
+      "type": "omics.download_plan",
+      "record_type": "geo_download_plan",
+      "database": "geo",
+      "entrez_database": "gds",
+      "id": "GSE100",
+      "stable_id": "GSE100:download-plan",
+      "label": "GSE100",
+      "title": "zzMex67 co-IPed RNA vs. Total RNA",
+      "description": "Saccharomyces cerevisiae | 4 samples",
+      "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100",
+      "icon": "download",
+      "identifiers": {
+        "geo": {
+          "namespace": "geo",
+          "id": "GSE100",
+          "label": "GSE100",
+          "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100"
+        }
+      },
+      "links": [
+        {
+          "label": "GEO",
+          "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100",
+          "kind": "external",
+          "primary": true
+        },
+        {
+          "label": "Series matrix",
+          "url": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSEnnn/GSE100/matrix/GSE100_series_matrix.txt.gz",
+          "kind": "download",
+          "primary": false
+        }
+      ],
+      "display": {
+        "component": "download_plan",
+        "chip_label": "GSE100",
+        "icon": "download",
+        "title": "zzMex67 co-IPed RNA vs. Total RNA",
+        "subtitle": "GEO | Saccharomyces cerevisiae",
+        "description": "Metadata-only GEO download plan. No data transfer has been started.",
+        "metadata": [
+          {
+            "label": "Series",
+            "value": "GSE100"
+          },
+          {
+            "label": "Samples",
+            "value": "4"
+          },
+          {
+            "label": "Series matrix",
+            "value": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSEnnn/GSE100/matrix/GSE100_series_matrix.txt.gz"
+          }
+        ],
+        "badges": [
+          {
+            "label": "GEO",
+            "kind": "source"
+          },
+          {
+            "label": "download plan",
+            "kind": "record_type"
+          }
+        ],
+        "actions": [
+          {
+            "label": "GEO",
+            "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100",
+            "kind": "external",
+            "primary": true
+          },
+          {
+            "label": "Series matrix",
+            "url": "https://ftp.ncbi.nlm.nih.gov/geo/series/GSEnnn/GSE100/matrix/GSE100_series_matrix.txt.gz",
+            "kind": "download",
+            "primary": false
+          }
+        ],
+        "hover": {
+          "title": "zzMex67 co-IPed RNA vs. Total RNA",
+          "subtitle": "Saccharomyces cerevisiae | Expression profiling by array",
+          "icon": "download",
+          "fields": [
+            {
+              "label": "Series",
+              "value": "GSE100"
+            },
+            {
+              "label": "Organism",
+              "value": "Saccharomyces cerevisiae"
+            }
+          ]
+        },
+                "primary_url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100",
+                "previews": [
+                    {
+                        "kind": "download_manifest",
+                        "title": "Download manifest",
+                        "provider": "NCBI GEO",
+                        "id": "GSE100",
+                        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100",
+                        "data": {
+                            "source": "geo",
+                            "accession": "GSE100",
+                            "sample_count": 4,
+                            "samples": ["GSM3006", "GSM3004"]
+                        }
+                    }
+                ]
+            },
+      "data": {
+        "accession": "GSE100",
+        "sample_accessions": ["GSM3006", "GSM3004"]
+      }
+    },
+    {
+      "schema_version": "bioinformatics.record.v1",
+      "type": "omics.download_plan",
+      "record_type": "sra_download_plan_item",
+      "database": "sra",
+      "id": "SRR7039034",
+      "stable_id": "SRR7039034",
+      "label": "SRR7039034",
+      "title": "GSM3104269: Human breast cancer xenograft 4913; Homo sapiens; RNA-Seq",
+      "description": "RNA-Seq | PAIRED | Homo sapiens",
+      "url": "https://trace.ncbi.nlm.nih.gov/Traces/?view=run_browser&acc=SRR7039034",
+      "icon": "download",
+      "identifiers": {
+        "sra_run": {
+          "namespace": "sra_run",
+          "id": "SRR7039034",
+          "label": "SRR7039034",
+          "url": "https://www.ncbi.nlm.nih.gov/sra/SRR7039034"
+        }
+      },
+      "links": [
+        {
+          "label": "SRA Run Browser",
+          "url": "https://trace.ncbi.nlm.nih.gov/Traces/?view=run_browser&acc=SRR7039034",
+          "kind": "external",
+          "primary": true
+        }
+      ],
+      "display": {
+        "component": "download_plan",
+        "chip_label": "SRR7039034",
+        "icon": "download",
+        "title": "GSM3104269: Human breast cancer xenograft 4913; Homo sapiens; RNA-Seq",
+        "subtitle": "SRA | RNA-Seq | Homo sapiens",
+        "description": "Metadata-only SRA download plan. No data transfer has been started.",
+        "metadata": [
+          {
+            "label": "Run",
+            "value": "SRR7039034"
+          },
+          {
+            "label": "BioSample",
+            "value": "SAMN08954945"
+          },
+          {
+            "label": "FASTQ",
+            "value": "fasterq-dump SRR7039034 --split-files --threads 8 --outdir data/fastq"
+          }
+        ],
+        "badges": [
+          {
+            "label": "NCBI SRA",
+            "kind": "source"
+          },
+          {
+            "label": "SRR7039034",
+            "kind": "identifier"
+          }
+        ],
+        "actions": [
+          {
+            "label": "SRA Run Browser",
+            "url": "https://trace.ncbi.nlm.nih.gov/Traces/?view=run_browser&acc=SRR7039034",
+            "kind": "external",
+            "primary": true
+          }
+        ],
+        "hover": {
+          "title": "GSM3104269: Human breast cancer xenograft 4913; Homo sapiens; RNA-Seq",
+          "subtitle": "RNA-Seq | Homo sapiens",
+          "icon": "download",
+          "fields": [
+            {
+              "label": "Run",
+              "value": "SRR7039034"
+            },
+            {
+              "label": "FASTQ command",
+              "value": "fasterq-dump SRR7039034 --split-files --threads 8 --outdir data/fastq"
+            }
+          ]
+        },
+                "primary_url": "https://trace.ncbi.nlm.nih.gov/Traces/?view=run_browser&acc=SRR7039034",
+                "previews": [
+                    {
+                        "kind": "download_manifest",
+                        "title": "Download manifest",
+                        "provider": "NCBI SRA",
+                        "id": "SRR7039034",
+                        "url": "https://trace.ncbi.nlm.nih.gov/Traces/?view=run_browser&acc=SRR7039034",
+                        "data": {
+                            "source": "sra",
+                            "accession": "SRR7039034",
+                            "commands": {
+                                "prefetch": "prefetch SRR7039034 --output-directory data/sra",
+                                "fastq": "fasterq-dump SRR7039034 --split-files --threads 8 --outdir data/fastq",
+                                "validate": "vdb-validate SRR7039034"
+                            }
+                        }
+                    }
+                ]
+            },
+      "data": {
+        "run_accession": "SRR7039034",
+        "commands": {
+          "prefetch": "prefetch SRR7039034 --output-directory data/sra",
+          "fastq": "fasterq-dump SRR7039034 --split-files --threads 8 --outdir data/fastq",
+          "validate": "vdb-validate SRR7039034"
+        }
+      }
+    },
+    {
+      "schema_version": "bioinformatics.record.v1",
+      "type": "omics.sample_sheet",
+      "record_type": "omics_sample_sheet",
+      "database": "geo",
+      "id": "GSE100",
+      "stable_id": "geo:GSE100:sample-sheet",
+      "label": "GSE100 sample sheet",
+      "title": "GSE100 sample sheet",
+      "description": "2 rows, 8 columns",
+      "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100",
+      "icon": "table",
+      "identifiers": {
+        "source_query": {
+          "namespace": "geo",
+          "id": "GSE100",
+          "label": "GSE100",
+          "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100"
+        }
+      },
+      "links": [
+        {
+          "label": "GEO",
+          "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100",
+          "kind": "external",
+          "primary": true
+        }
+      ],
+      "display": {
+        "component": "sample_sheet",
+        "chip_label": "GSE100 samples",
+        "icon": "table",
+        "title": "GSE100 sample sheet",
+        "subtitle": "GEO | 2 rows",
+        "description": "Front-end-ready sample metadata table.",
+        "metadata": [
+          {
+            "label": "Rows",
+            "value": "2"
+          },
+          {
+            "label": "Columns",
+            "value": "8"
+          }
+        ],
+        "badges": [
+          {
+            "label": "GEO",
+            "kind": "source"
+          },
+          {
+            "label": "sample sheet",
+            "kind": "record_type"
+          }
+        ],
+        "actions": [
+          {
+            "label": "GEO",
+            "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100",
+            "kind": "external",
+            "primary": true
+          }
+        ],
+        "hover": {
+          "title": "GSE100 sample sheet",
+          "subtitle": "2 rows, 8 columns",
+          "icon": "table",
+          "fields": [
+            {
+              "label": "Source",
+              "value": "geo"
+            },
+            {
+              "label": "Query",
+              "value": "GSE100"
+            }
+          ]
+        },
+                "primary_url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100",
+                "previews": [
+                    {
+                        "kind": "table",
+                        "title": "Sample table",
+                        "provider": "NCBI GEO",
+                        "id": "GSE100",
+                        "url": "https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc=GSE100",
+                        "data": {
+                            "columns": [
+                                {
+                                    "key": "sample_accession",
+                                    "label": "Sample"
+                                }
+                            ],
+                            "rows": [
+                                {
+                                    "sample_accession": "GSM3006",
+                                    "sample_title": "sample one"
+                                },
+                                {
+                                    "sample_accession": "GSM3004",
+                                    "sample_title": "sample two"
+                                }
+                            ],
+                            "row_count": 2,
+                            "column_count": 1
+                        }
+                    }
+                ]
+            },
+      "data": {
+        "columns": [
+          {
+            "key": "sample_accession",
+            "label": "Sample"
+          }
+        ],
+        "rows": [
+          {
+            "sample_accession": "GSM3006",
+            "sample_title": "sample one"
+          },
+          {
+            "sample_accession": "GSM3004",
+            "sample_title": "sample two"
+          }
+        ]
+      }
+    },
+    {
+      "schema_version": "bioinformatics.record.v1",
+      "type": "runtime.tool",
+      "record_type": "tool_runtime_status",
+      "database": "local_runtime",
+      "id": "prefetch",
+      "stable_id": "runtime:prefetch",
+      "label": "prefetch",
+      "title": "prefetch runtime",
+      "description": "missing",
+      "url": "",
+      "icon": "terminal",
+      "identifiers": {
+        "runtime_tool": {
+          "namespace": "runtime_tool",
+          "id": "prefetch",
+          "label": "prefetch"
+        }
+      },
+      "links": [],
+      "display": {
+        "component": "runtime_status",
+        "chip_label": "prefetch",
+        "icon": "terminal",
+        "title": "prefetch runtime",
+        "subtitle": "missing",
+        "description": "",
+        "metadata": [
+          {
+            "label": "Tool",
+            "value": "prefetch"
+          },
+          {
+            "label": "Available",
+            "value": "no"
+          }
+        ],
+        "badges": [
+          {
+            "label": "local runtime",
+            "kind": "source"
+          },
+          {
+            "label": "missing",
+            "kind": "status"
+          }
+        ],
+        "actions": [],
+        "hover": {
+          "title": "prefetch runtime",
+          "subtitle": "missing",
+          "icon": "terminal",
+          "fields": [
+            {
+              "label": "Tool",
+              "value": "prefetch"
+            },
+            {
+              "label": "Available",
+              "value": "no"
+            }
+          ]
+        },
+                "primary_url": "",
+                "previews": [
+                    {
+                        "kind": "text",
+                        "title": "Runtime status",
+                        "provider": "Local runtime",
+                        "id": "prefetch",
+                        "data": {
+                            "text": "missing"
+                        }
+                    }
+                ]
+            },
+      "data": {
+        "tool": "prefetch",
+        "available": false,
+        "path": "",
+        "version": "",
+        "version_error": ""
+      }
+    }
+  ]
+}

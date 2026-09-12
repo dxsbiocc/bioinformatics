@@ -1,0 +1,5 @@
+interface:
+  display_name: "Omics Literature"
+  short_description: "Find and synthesize literature for omics questions"
+  brand_color: "#6F8F72"
+  default_prompt: "Use $omics-literature to find and synthesize the evidence for this omics research question."

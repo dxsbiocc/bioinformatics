@@ -1,0 +1,2 @@
+"""ChEBI MCP package."""
+

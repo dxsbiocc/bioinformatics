@@ -1,0 +1,2 @@
+"""STRING MCP server package."""
+

@@ -1,0 +1,2 @@
+"""MetaboLights MCP server package."""
+

@@ -1,0 +1,2 @@
+"""QuickGO MCP server package."""
+
