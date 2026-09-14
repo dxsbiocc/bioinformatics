@@ -9,14 +9,10 @@ import urllib.parse
 from collections.abc import Callable
 from dataclasses import dataclass
 
-import httpx
+from mcp.http_client import Opener, PacedHttpClient
 
 from .constants import DEFAULT_TOOL_NAME, NCBI_EUTILS_BASE_URL, JsonObject
 from .errors import NcbiError
-
-# (url, headers, timeout_seconds) -> response body text. Test seam for
-# injecting a fake transport without touching the shared httpx.Client.
-Opener = Callable[[str, dict[str, str], float], str]
 
 
 @dataclass
@@ -49,32 +45,24 @@ class NcbiClient:
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self.config = config or NcbiConfig.from_env()
-        self._opener = opener
-        self._sleep = sleep
-        self._monotonic = monotonic
-        self._last_request_at = 0.0
-        self._http: httpx.Client | None = None
-
-    @property
-    def _client(self) -> httpx.Client:
-        if self._http is None:
-            self._http = httpx.Client(
-                http2=True,
-                timeout=httpx.Timeout(self.config.timeout_seconds),
-            )
-        return self._http
+        self._http = PacedHttpClient(
+            error_class=NcbiError,
+            service_name="NCBI",
+            timeout_seconds=self.config.timeout_seconds,
+            requests_per_second=self.requests_per_second,
+            opener=opener,
+            sleep=sleep,
+            monotonic=monotonic,
+        )
 
     def close(self) -> None:
-        if self._http is not None:
-            self._http.close()
-            self._http = None
+        self._http.close()
 
     @property
     def requests_per_second(self) -> int:
         return 10 if self.config.api_key else 3
 
     def request_text(self, endpoint: str, params: JsonObject) -> str:
-        self._throttle()
         url = self._build_url(endpoint, params)
         return self._open_url(url, endpoint)
 
@@ -86,7 +74,6 @@ class NcbiClient:
         label: str = "request",
         include_api_key: bool = False,
     ) -> str:
-        self._throttle()
         query: JsonObject = {
             **params,
             "tool": self.config.tool,
@@ -126,19 +113,8 @@ class NcbiClient:
             "Accept": "application/json, application/xml, text/plain",
             "User-Agent": self._user_agent(),
         }
-        try:
-            if self._opener is not None:
-                return self._opener(url, headers, self.config.timeout_seconds)
-            response = self._client.get(url, headers=headers)
-            response.raise_for_status()
-            return response.text
-        except httpx.HTTPStatusError as exc:
-            detail = exc.response.text
-            raise NcbiError(
-                f"NCBI {label} returned HTTP {exc.response.status_code}: {detail[:500]}"
-            ) from exc
-        except httpx.HTTPError as exc:
-            raise NcbiError(f"Could not reach NCBI {label}: {exc}") from exc
+        text, _headers = self._http.send("GET", url, headers, label=label)
+        return text
 
     def request_json(self, endpoint: str, params: JsonObject) -> JsonObject:
         text = self.request_text(endpoint, params)
@@ -161,14 +137,6 @@ class NcbiClient:
             query["api_key"] = self.config.api_key
         encoded = urllib.parse.urlencode(query, doseq=True)
         return f"{self.config.base_url.rstrip('/')}/{endpoint}?{encoded}"
-
-    def _throttle(self) -> None:
-        minimum_interval = 1.0 / self.requests_per_second
-        now = self._monotonic()
-        elapsed = now - self._last_request_at
-        if elapsed < minimum_interval:
-            self._sleep(minimum_interval - elapsed)
-        self._last_request_at = self._monotonic()
 
     def _user_agent(self) -> str:
         if self.config.email:

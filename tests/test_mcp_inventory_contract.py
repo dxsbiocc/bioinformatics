@@ -93,20 +93,23 @@ def load_server_module(server_name: str, server_path: pathlib.Path) -> Any:
 
 
 def server_instance(module: Any) -> Any:
+    # Servers now subclass the shared mcp.rpc.McpServer (and its own name
+    # happens to also end in "McpServer"), so only count classes actually
+    # defined in this module - not ones merely imported into its namespace.
     server_classes = [
         cls
         for name, cls in vars(module).items()
-        if inspect.isclass(cls) and name.endswith("McpServer")
+        if inspect.isclass(cls) and cls.__module__ == module.__name__ and name.endswith("McpServer")
     ]
     client_classes = [
         cls
         for name, cls in vars(module).items()
-        if inspect.isclass(cls) and name.endswith("Client")
+        if inspect.isclass(cls) and cls.__module__ == module.__name__ and name.endswith("Client")
     ]
     config_classes = [
         cls
         for name, cls in vars(module).items()
-        if inspect.isclass(cls) and name.endswith("Config")
+        if inspect.isclass(cls) and cls.__module__ == module.__name__ and name.endswith("Config")
     ]
     if len(server_classes) != 1:
         raise AssertionError(f"expected one MCP server class, found {server_classes!r}")
