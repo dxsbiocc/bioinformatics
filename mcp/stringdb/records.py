@@ -7,7 +7,6 @@ import hashlib
 from .constants import RECORD_SCHEMA_VERSION, STRING_WEBSITE_BASE_URL, JsonObject
 from .utils import normalize_score, normalize_space
 
-
 EVIDENCE_SCORE_LABELS = {
     "nscore": "Neighborhood",
     "fscore": "Gene fusion",

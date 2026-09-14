@@ -22,7 +22,6 @@ from .utils import (
     text_from_child,
 )
 
-
 BIOSAMPLE_ACCESSION_RE = re.compile(r"^SAM[A-Z]+\d+$", re.IGNORECASE)
 
 

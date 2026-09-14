@@ -6,8 +6,9 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -34,7 +35,7 @@ class ClinvarConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "ClinvarConfig":
+    def from_env(cls) -> ClinvarConfig:
         return cls(
             clinical_tables_url=os.environ.get("CLINVAR_CLINICAL_TABLES_URL", CLINICAL_TABLES_URL),
             eutils_base_url=os.environ.get("CLINVAR_EUTILS_BASE_URL", EUTILS_BASE_URL),

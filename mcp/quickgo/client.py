@@ -6,8 +6,9 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -26,7 +27,7 @@ class QuickGoConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "QuickGoConfig":
+    def from_env(cls) -> QuickGoConfig:
         return cls(
             base_url=os.environ.get("QUICKGO_API_BASE_URL", QUICKGO_API_BASE_URL),
             website_base_url=os.environ.get("QUICKGO_WEBSITE_BASE_URL", QUICKGO_WEBSITE_BASE_URL),

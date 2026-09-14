@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import httpx
 
@@ -30,7 +30,7 @@ class OpenTargetsConfig:
     retry_base_seconds: float = 0.75
 
     @classmethod
-    def from_env(cls) -> "OpenTargetsConfig":
+    def from_env(cls) -> OpenTargetsConfig:
         return cls(
             graphql_url=os.environ.get("OPENTARGETS_GRAPHQL_URL", OPENTARGETS_GRAPHQL_URL),
             website_base_url=os.environ.get(

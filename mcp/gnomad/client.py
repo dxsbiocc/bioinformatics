@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import os
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
 
 import httpx
 
@@ -25,7 +25,7 @@ class GnomadConfig:
     retry_base_seconds: float = 0.75
 
     @classmethod
-    def from_env(cls) -> "GnomadConfig":
+    def from_env(cls) -> GnomadConfig:
         return cls(
             graphql_url=os.environ.get("GNOMAD_GRAPHQL_URL", GNOMAD_GRAPHQL_URL),
             website_base_url=os.environ.get("GNOMAD_WEBSITE_BASE_URL", GNOMAD_WEBSITE_BASE_URL),

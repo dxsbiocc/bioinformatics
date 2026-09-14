@@ -6,8 +6,9 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -26,7 +27,7 @@ class ChebiConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "ChebiConfig":
+    def from_env(cls) -> ChebiConfig:
         return cls(
             api_base_url=os.environ.get("CHEBI_API_BASE_URL", CHEBI_API_BASE_URL),
             website_base_url=os.environ.get("CHEBI_WEBSITE_BASE_URL", CHEBI_WEBSITE_BASE_URL),

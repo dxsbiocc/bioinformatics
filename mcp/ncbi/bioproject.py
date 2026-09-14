@@ -18,7 +18,6 @@ from .utils import (
     source_info,
 )
 
-
 BIOPROJECT_ACCESSION_RE = re.compile(r"^PRJ[A-Z]{1,4}\d+$", re.IGNORECASE)
 
 

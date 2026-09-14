@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from .constants import (
     MAX_PREVIEW_PARTICIPANTS,
-    RECORD_SCHEMA_VERSION,
     REACTOME_CONTENT_API_BASE_URL,
     REACTOME_WEBSITE_BASE_URL,
+    RECORD_SCHEMA_VERSION,
     JsonObject,
 )
 from .utils import clean_html, first_text, normalize_space

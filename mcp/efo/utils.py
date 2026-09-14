@@ -10,7 +10,6 @@ from typing import Any
 from .constants import DEFAULT_RESULTS, MAX_RESULTS, OLS4_API_BASE_URL, OLS4_WEBSITE_BASE_URL, JsonObject
 from .errors import McpError
 
-
 CURIE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_-]*[:_][A-Za-z0-9_.-]+$")
 
 

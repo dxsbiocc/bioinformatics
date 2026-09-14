@@ -12,7 +12,6 @@ from .constants import (
 )
 from .utils import normalize_space, safe_list
 
-
 DATASOURCE_LABELS = {
     "cancer_biomarkers": "Cancer Biomarkers",
     "cancer_gene_census": "Cancer Gene Census",

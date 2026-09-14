@@ -4,8 +4,24 @@ from __future__ import annotations
 
 from typing import Any
 
-from .constants import CHEBI_API_BASE_URL, CHEBI_WEBSITE_BASE_URL, MAX_SYNONYMS, MAX_XREFS, RECORD_SCHEMA_VERSION, JsonObject
-from .utils import chebi_image_url, chebi_numeric_id, chebi_page_url, first_text, normalize_chebi_id, normalize_space, safe_dict, safe_list
+from .constants import (
+    CHEBI_API_BASE_URL,
+    CHEBI_WEBSITE_BASE_URL,
+    MAX_SYNONYMS,
+    MAX_XREFS,
+    RECORD_SCHEMA_VERSION,
+    JsonObject,
+)
+from .utils import (
+    chebi_image_url,
+    chebi_numeric_id,
+    chebi_page_url,
+    first_text,
+    normalize_chebi_id,
+    normalize_space,
+    safe_dict,
+    safe_list,
+)
 
 
 def chebi_compound_record(

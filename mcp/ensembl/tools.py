@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from mcp.dynamic_context import build_dynamic_context_response
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
-from typing import Callable
 
 from .client import EnsemblClient
 from .constants import MAX_RESULTS, MAX_XREFS, RESULT_SCHEMA_VERSION, JsonObject
@@ -21,7 +22,6 @@ from .utils import (
     require_region,
     source_info,
 )
-
 
 OVERLAP_FEATURES = {"gene", "transcript", "variation", "regulatory"}
 ENSEMBL_CONTEXT_TYPES = ["all", "stable_ids", "xrefs", "regions", "variations", "species", "features"]

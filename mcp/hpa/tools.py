@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 import urllib.parse
+
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 
 from .client import HpaClient
 from .constants import DEFAULT_RESULTS, MAX_RESULTS, RESULT_SCHEMA_VERSION, JsonObject

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from mcp.dynamic_context import build_dynamic_context_response
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
+
 from .client import QuickGoClient
 from .constants import DEFAULT_RESULTS, MAX_RELATIONS, MAX_RESULTS, RESULT_SCHEMA_VERSION, JsonObject
 from .errors import McpError, QuickGoError
@@ -18,7 +19,6 @@ from .utils import (
     require_non_empty_string,
     source_info,
 )
-
 
 QUICKGO_CONTEXT_TYPES = ["all", "terms", "annotations", "evidence", "taxon", "aspects"]
 QUICKGO_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"

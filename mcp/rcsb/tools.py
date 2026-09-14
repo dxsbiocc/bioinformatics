@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from mcp.dynamic_context import build_dynamic_context_response
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
-from typing import Callable
 
 from .client import RcsbClient
 from .constants import (
     MAX_ENTITY_SUMMARIES,
     MAX_SEARCH_RESULTS,
-    RCSB_DATA_API_BASE_URL,
-    RCSB_SEARCH_API_BASE_URL,
-    RCSB_WEBSITE_BASE_URL,
     RESULT_SCHEMA_VERSION,
     JsonObject,
 )
@@ -26,7 +24,6 @@ from .utils import (
     require_pdb_id,
     source_info,
 )
-
 
 RCSB_CONTEXT_TYPES = ["all", "search", "entry", "downloads"]
 RCSB_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"

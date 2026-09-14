@@ -6,8 +6,8 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import httpx
 
@@ -35,7 +35,7 @@ class RcsbConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "RcsbConfig":
+    def from_env(cls) -> RcsbConfig:
         return cls(
             data_base_url=os.environ.get("RCSB_DATA_BASE_URL", RCSB_DATA_API_BASE_URL),
             search_base_url=os.environ.get("RCSB_SEARCH_BASE_URL", RCSB_SEARCH_API_BASE_URL),

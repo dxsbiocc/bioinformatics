@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from .client import NcbiClient
 from .constants import JsonObject
 from .errors import McpError
 from .records import with_pmc_id_compat
 from .utils import normalize_space, optional_bool, source_info
-
 
 PMC_ID_CONVERTER_URL = "https://pmc.ncbi.nlm.nih.gov/tools/idconv/api/v1/articles/"
 

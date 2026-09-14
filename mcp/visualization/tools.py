@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
+import sys
 import time
 import urllib.parse
-import sys
 from pathlib import Path
 from typing import Any
+
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 
 from .constants import (
     DEFAULT_TOP_RECOMMENDATIONS,
@@ -17,7 +18,6 @@ from .constants import (
     JsonObject,
 )
 from .errors import McpError
-
 
 PLUGIN_ROOT = Path(__file__).resolve().parents[2]
 SKILL_ROOT = PLUGIN_ROOT / "skills" / "omics-visualization"

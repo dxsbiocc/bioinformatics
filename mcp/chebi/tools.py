@@ -4,12 +4,23 @@ from __future__ import annotations
 
 from mcp.dynamic_context import build_dynamic_context_response
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
+
 from .client import ChebiClient
 from .constants import DEFAULT_RESULTS, MAX_RELATIONS, MAX_RESULTS, RESULT_SCHEMA_VERSION, JsonObject
 from .errors import ChebiError, McpError
 from .records import chebi_compound_record, chebi_relation_record
-from .utils import max_results, normalize_chebi_id, normalize_space, optional_bool, optional_int, require_chebi_id, require_query, safe_dict, safe_list, source_info
-
+from .utils import (
+    max_results,
+    normalize_chebi_id,
+    normalize_space,
+    optional_bool,
+    optional_int,
+    require_chebi_id,
+    require_query,
+    safe_dict,
+    safe_list,
+    source_info,
+)
 
 SEARCH_ENDPOINT = "chebi/backend/api/public/es_search/"
 COMPOUND_ENDPOINT_PREFIX = "chebi/backend/api/public/compound"

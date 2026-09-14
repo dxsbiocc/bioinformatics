@@ -6,8 +6,9 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -26,7 +27,7 @@ class ChemblConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "ChemblConfig":
+    def from_env(cls) -> ChemblConfig:
         return cls(
             base_url=os.environ.get("CHEMBL_REST_BASE_URL", CHEMBL_REST_BASE_URL),
             website_base_url=os.environ.get("CHEMBL_WEBSITE_BASE_URL", CHEMBL_WEBSITE_BASE_URL),

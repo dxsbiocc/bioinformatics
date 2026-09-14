@@ -9,7 +9,6 @@ from typing import Any
 from .constants import JsonObject
 from .errors import McpError
 
-
 GO_ID_RE = re.compile(r"^GO:\d{7}$")
 
 

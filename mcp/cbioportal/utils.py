@@ -9,7 +9,6 @@ from typing import Any
 from .constants import JsonObject
 from .errors import McpError
 
-
 ID_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 GENE_SYMBOL_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 CLINICAL_DATA_TYPES = {"SAMPLE", "PATIENT"}

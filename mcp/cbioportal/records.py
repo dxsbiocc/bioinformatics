@@ -7,7 +7,7 @@ import urllib.parse
 from typing import Any
 
 from .constants import CBIOPORTAL_API_BASE_URL, CBIOPORTAL_WEBSITE_BASE_URL, RECORD_SCHEMA_VERSION, JsonObject
-from .utils import normalize_space, safe_list
+from .utils import normalize_space
 
 
 def cbioportal_study_record(

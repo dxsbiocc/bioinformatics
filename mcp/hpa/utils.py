@@ -9,7 +9,6 @@ from typing import Any
 from .constants import JsonObject
 from .errors import McpError
 
-
 ENSG_RE = re.compile(r"^ENSG\d{11}$", re.IGNORECASE)
 
 

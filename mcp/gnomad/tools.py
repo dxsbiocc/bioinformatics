@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from mcp.dynamic_context import build_dynamic_context_response
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
-from typing import Callable
 
 from .client import GnomadClient
 from .constants import (
@@ -25,7 +26,6 @@ from .utils import (
     require_non_empty_string,
     source_info,
 )
-
 
 GNOMAD_CONTEXT_TYPES = ["all", "variants", "genes", "datasets", "reference_genomes"]
 GNOMAD_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"

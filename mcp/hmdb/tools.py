@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
+
 from .client import HmdbClient
 from .constants import DEFAULT_RESULTS, HMDB_CATEGORIES, MAX_RESULTS, RESULT_SCHEMA_VERSION, SEARCH_PATH, JsonObject
 from .records import hmdb_record

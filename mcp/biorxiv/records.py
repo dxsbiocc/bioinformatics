@@ -5,7 +5,7 @@ from __future__ import annotations
 import urllib.parse
 
 from .constants import BIORXIV_WEBSITE_BASE_URL, MEDRXIV_WEBSITE_BASE_URL, RECORD_SCHEMA_VERSION, JsonObject
-from .utils import normalize_space, safe_list, split_authors
+from .utils import normalize_space, split_authors
 
 
 def preprint_record(row: JsonObject, *, server: str) -> JsonObject:

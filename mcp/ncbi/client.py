@@ -6,8 +6,8 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import httpx
 
@@ -28,7 +28,7 @@ class NcbiConfig:
     timeout_seconds: float = 30.0
 
     @classmethod
-    def from_env(cls) -> "NcbiConfig":
+    def from_env(cls) -> NcbiConfig:
         return cls(
             api_key=os.environ.get("NCBI_API_KEY")
             or os.environ.get("ENTREZ_API_KEY"),

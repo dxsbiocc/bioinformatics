@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
+
 from .client import PrideClient
 from .constants import DEFAULT_FILES, DEFAULT_RESULTS, MAX_FILES, MAX_RESULTS, RESULT_SCHEMA_VERSION, JsonObject
 from .errors import PrideError
 from .records import pride_files_download_plan_record, pride_project_record
-from .utils import optional_bool, optional_int, optional_string, require_accession, require_non_empty_string, source_info
+from .utils import (
+    optional_bool,
+    optional_int,
+    require_accession,
+    require_non_empty_string,
+    source_info,
+)
 
 
 def pride_status(args: JsonObject, client: PrideClient) -> JsonObject:

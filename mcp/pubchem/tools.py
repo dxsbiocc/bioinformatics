@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import urllib.parse
+from collections.abc import Callable
+
 from mcp.dynamic_context import build_dynamic_context_response
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
-import urllib.parse
-from typing import Callable
 
 from .client import PubChemClient
 from .constants import COMPOUND_PROPERTY_FIELDS, MAX_RESULTS, MAX_SYNONYMS, RESULT_SCHEMA_VERSION, JsonObject
@@ -24,7 +25,6 @@ from .utils import (
     require_non_empty_string,
     source_info,
 )
-
 
 PUBCHEM_CONTEXT_TYPES = ["all", "compounds", "assays", "substances", "namespaces"]
 PUBCHEM_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"

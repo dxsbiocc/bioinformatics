@@ -8,7 +8,6 @@ import sys
 import tempfile
 import unittest
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 ROUTER = ROOT / "skills" / "omics-visualization" / "scripts" / "route_template.py"
 QA = ROOT / "skills" / "omics-visualization" / "scripts" / "qa_single_plot.py"

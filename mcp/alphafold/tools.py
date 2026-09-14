@@ -2,13 +2,13 @@
 
 from __future__ import annotations
 
-from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 import urllib.parse
-from typing import Callable
+from collections.abc import Callable
+
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 
 from .client import AlphaFoldClient
 from .constants import (
-    ALPHAFOLD_API_BASE_URL,
     ALPHAFOLD_WEBSITE_BASE_URL,
     MAX_MODELS,
     RESULT_SCHEMA_VERSION,

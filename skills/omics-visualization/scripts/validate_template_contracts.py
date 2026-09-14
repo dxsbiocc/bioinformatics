@@ -12,7 +12,6 @@ from typing import Any
 
 from route_template import DEFAULT_CONTRACTS, ROLE_HINTS
 
-
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 CATALOG_DIR = SKILL_ROOT / "references" / "catalog"
 REQUIRED_TEMPLATE_KEYS = {

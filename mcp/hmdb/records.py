@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any
 
 from .constants import HMDB_BASE_URL, RECORD_SCHEMA_VERSION, JsonObject
 from .utils import first_text, hmdb_record_url, normalize_space, pick_list, safe_list

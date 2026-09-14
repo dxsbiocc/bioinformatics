@@ -5,8 +5,8 @@ from __future__ import annotations
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import httpx
 
@@ -27,7 +27,7 @@ class KeggConfig:
     requests_per_second: float = 3.0
 
     @classmethod
-    def from_env(cls) -> "KeggConfig":
+    def from_env(cls) -> KeggConfig:
         return cls(
             base_url=os.environ.get("KEGG_REST_BASE_URL", KEGG_REST_BASE_URL),
             website_base_url=os.environ.get("KEGG_WEBSITE_BASE_URL", KEGG_WEBSITE_BASE_URL),

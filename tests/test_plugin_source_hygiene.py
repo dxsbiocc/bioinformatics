@@ -3,7 +3,6 @@ from __future__ import annotations
 import pathlib
 import unittest
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 

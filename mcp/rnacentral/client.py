@@ -6,8 +6,9 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -25,7 +26,7 @@ class RnaCentralConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "RnaCentralConfig":
+    def from_env(cls) -> RnaCentralConfig:
         return cls(
             base_url=os.environ.get("RNACENTRAL_API_BASE_URL", RNACENTRAL_API_BASE_URL),
             contact=os.environ.get("RNACENTRAL_CONTACT") or os.environ.get("NCBI_EMAIL") or os.environ.get("ENTREZ_EMAIL"),

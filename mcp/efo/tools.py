@@ -3,11 +3,20 @@
 from __future__ import annotations
 
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
+
 from .client import EfoClient
 from .constants import DEFAULT_RESULTS, MAX_RELATIONS, MAX_RESULTS, RESULT_SCHEMA_VERSION, JsonObject
 from .errors import EfoError
 from .records import efo_term_record
-from .utils import max_results, optional_bool, optional_int, optional_string, require_query, require_term, source_info, term_endpoint
+from .utils import (
+    max_results,
+    optional_bool,
+    optional_int,
+    require_query,
+    require_term,
+    source_info,
+    term_endpoint,
+)
 
 
 def efo_status(args: JsonObject, client: EfoClient) -> JsonObject:

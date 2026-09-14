@@ -6,8 +6,8 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import httpx
 
@@ -25,7 +25,7 @@ class AlphaFoldConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "AlphaFoldConfig":
+    def from_env(cls) -> AlphaFoldConfig:
         return cls(
             base_url=os.environ.get("ALPHAFOLD_BASE_URL", ALPHAFOLD_API_BASE_URL),
             contact=os.environ.get("ALPHAFOLD_CONTACT")

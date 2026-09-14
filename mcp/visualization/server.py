@@ -11,7 +11,12 @@ from typing import Any
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from mcp.visualization.constants import JSONRPC_VERSION, LATEST_PROTOCOL_VERSION, SUPPORTED_PROTOCOL_VERSIONS, JsonObject
+from mcp.visualization.constants import (
+    JSONRPC_VERSION,
+    LATEST_PROTOCOL_VERSION,
+    SUPPORTED_PROTOCOL_VERSIONS,
+    JsonObject,
+)
 from mcp.visualization.errors import McpError, VisualizationError
 from mcp.visualization.tools import TOOL_HANDLERS, tool_definitions
 

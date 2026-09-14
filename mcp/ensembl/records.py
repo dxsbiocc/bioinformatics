@@ -135,7 +135,7 @@ def ensembl_xrefs_record(ensembl_id: str, xrefs: list[JsonObject], *, total: int
             "icon": "ensembl",
             "title": f"Cross-references for {ensembl_id}",
             "subtitle": f"{len(normalized)} shown | {total} total",
-            "description": f"External database references returned by Ensembl.",
+            "description": "External database references returned by Ensembl.",
             "metadata": compact_fields(
                 ("Ensembl ID", ensembl_id),
                 ("Shown", str(len(normalized))),

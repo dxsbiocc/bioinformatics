@@ -6,8 +6,8 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import httpx
 
@@ -31,7 +31,7 @@ class StringDbConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "StringDbConfig":
+    def from_env(cls) -> StringDbConfig:
         return cls(
             base_url=os.environ.get("STRING_BASE_URL", STRING_API_BASE_URL),
             caller_identity=os.environ.get(

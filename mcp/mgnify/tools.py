@@ -2,14 +2,23 @@
 
 from __future__ import annotations
 
-from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 import urllib.parse
+
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 
 from .client import MgnifyClient
 from .constants import DEFAULT_RESULTS, MAX_RESULTS, RESULT_SCHEMA_VERSION, JsonObject
 from .errors import MgnifyError
 from .records import mgnify_biome_record, mgnify_sample_record, mgnify_study_record
-from .utils import optional_bool, optional_int, require_biome_id, require_non_empty_string, require_sample_accession, require_study_accession, source_info
+from .utils import (
+    optional_bool,
+    optional_int,
+    require_biome_id,
+    require_non_empty_string,
+    require_sample_accession,
+    require_study_accession,
+    source_info,
+)
 
 
 def mgnify_status(args: JsonObject, client: MgnifyClient) -> JsonObject:

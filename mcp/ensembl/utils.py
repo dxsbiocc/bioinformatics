@@ -9,7 +9,6 @@ from typing import Any
 from .constants import JsonObject
 from .errors import McpError
 
-
 ENSEMBL_ID_PATTERN = re.compile(r"^ENS[A-Z]*[GTEPRFM]\d+(?:\.\d+)?$", re.IGNORECASE)
 REGION_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+:\d+-\d+(?::[-1]+)?$")
 

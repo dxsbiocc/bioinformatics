@@ -6,8 +6,8 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import httpx
 
@@ -25,7 +25,7 @@ class UniProtConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "UniProtConfig":
+    def from_env(cls) -> UniProtConfig:
         return cls(
             base_url=os.environ.get("UNIPROT_BASE_URL", UNIPROT_REST_BASE_URL),
             contact=os.environ.get("UNIPROT_CONTACT")

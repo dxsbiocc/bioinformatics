@@ -2,16 +2,16 @@
 
 from __future__ import annotations
 
+import urllib.parse
+from collections.abc import Callable
+
 from mcp.dynamic_context import build_dynamic_context_response
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
-import urllib.parse
-from typing import Callable
 
 from .client import UniProtClient
 from .constants import (
     MAX_RESULTS,
     RESULT_SCHEMA_VERSION,
-    UNIPROT_REST_BASE_URL,
     UNIPROT_WEBSITE_BASE_URL,
     JsonObject,
 )
@@ -26,7 +26,6 @@ from .utils import (
     require_non_empty_string,
     source_info,
 )
-
 
 UNIPROT_CONTEXT_TYPES = ["all", "search", "accession", "organisms", "features", "xrefs"]
 UNIPROT_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"

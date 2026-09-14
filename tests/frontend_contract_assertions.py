@@ -4,7 +4,6 @@ import re
 from typing import Any
 from unittest import TestCase
 
-
 SAFE_HTTP_URL = re.compile(r"^https?://", re.IGNORECASE)
 RENDERABLE_SCALAR_TYPES = (str, int, float, bool)
 

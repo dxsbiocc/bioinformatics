@@ -6,8 +6,9 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -31,7 +32,7 @@ class ReactomeConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "ReactomeConfig":
+    def from_env(cls) -> ReactomeConfig:
         return cls(
             base_url=os.environ.get("REACTOME_BASE_URL", REACTOME_CONTENT_API_BASE_URL),
             website_base_url=os.environ.get("REACTOME_WEBSITE_BASE_URL", REACTOME_WEBSITE_BASE_URL),

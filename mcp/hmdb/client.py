@@ -6,8 +6,9 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -25,7 +26,7 @@ class HmdbConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "HmdbConfig":
+    def from_env(cls) -> HmdbConfig:
         return cls(
             base_url=os.environ.get("HMDB_BASE_URL", HMDB_BASE_URL),
             contact=os.environ.get("HMDB_CONTACT") or os.environ.get("NCBI_EMAIL") or os.environ.get("ENTREZ_EMAIL"),

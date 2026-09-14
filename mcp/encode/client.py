@@ -6,8 +6,9 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -25,7 +26,7 @@ class EncodeConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "EncodeConfig":
+    def from_env(cls) -> EncodeConfig:
         return cls(
             base_url=os.environ.get("ENCODE_BASE_URL", ENCODE_BASE_URL),
             contact=os.environ.get("ENCODE_CONTACT")

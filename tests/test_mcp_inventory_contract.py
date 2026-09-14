@@ -8,7 +8,6 @@ import sys
 import unittest
 from typing import Any
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 

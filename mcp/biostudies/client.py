@@ -6,8 +6,9 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -26,7 +27,7 @@ class BioStudiesConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "BioStudiesConfig":
+    def from_env(cls) -> BioStudiesConfig:
         return cls(
             base_url=os.environ.get("BIOSTUDIES_API_BASE_URL", BIOSTUDIES_API_BASE_URL),
             website_base_url=os.environ.get("BIOSTUDIES_WEBSITE_BASE_URL", BIOSTUDIES_WEBSITE_BASE_URL),

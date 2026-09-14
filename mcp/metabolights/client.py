@@ -6,8 +6,9 @@ import json
 import os
 import time
 import urllib.parse
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any
 
 import httpx
 
@@ -33,7 +34,7 @@ class MetaboLightsConfig:
     retry_base_seconds: float = 0.5
 
     @classmethod
-    def from_env(cls) -> "MetaboLightsConfig":
+    def from_env(cls) -> MetaboLightsConfig:
         return cls(
             ws_base_url=os.environ.get("METABOLIGHTS_WS_BASE_URL", METABOLIGHTS_WS_BASE_URL),
             search_base_url=os.environ.get("EBI_SEARCH_BASE_URL", EBI_SEARCH_BASE_URL),

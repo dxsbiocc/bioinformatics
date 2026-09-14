@@ -7,9 +7,15 @@ import time
 import urllib.parse
 from typing import Any
 
-from .constants import DEFAULT_PAGE, DEFAULT_RESULTS, MAX_RESULTS, RNACENTRAL_API_BASE_URL, RNACENTRAL_WEBSITE_BASE_URL, JsonObject
+from .constants import (
+    DEFAULT_PAGE,
+    DEFAULT_RESULTS,
+    MAX_RESULTS,
+    RNACENTRAL_API_BASE_URL,
+    RNACENTRAL_WEBSITE_BASE_URL,
+    JsonObject,
+)
 from .errors import McpError
-
 
 URN_RE = re.compile(r"^URS[0-9A-F]{10,}$", re.IGNORECASE)
 

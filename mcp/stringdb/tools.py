@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from mcp.dynamic_context import build_dynamic_context_response
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
-from typing import Callable
 
 from .client import StringDbClient
 from .constants import (
@@ -13,6 +14,7 @@ from .constants import (
     STRING_WEBSITE_BASE_URL,
     JsonObject,
 )
+from .errors import McpError
 from .records import (
     build_network_nodes,
     normalize_interaction,
@@ -20,9 +22,7 @@ from .records import (
     string_mapping_record,
     string_network_record,
 )
-from .errors import McpError
 from .utils import normalize_space, optional_bool, optional_int, require_identifiers, source_info
-
 
 STRING_CONTEXT_TYPES = ["all", "identifiers", "species", "network", "scores"]
 STRING_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"

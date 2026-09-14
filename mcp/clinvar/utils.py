@@ -9,7 +9,6 @@ from typing import Any
 from .constants import JsonObject
 from .errors import McpError
 
-
 VCV_PATTERN = re.compile(r"^VCV0*(\d+)(?:\.\d+)?$", re.IGNORECASE)
 
 

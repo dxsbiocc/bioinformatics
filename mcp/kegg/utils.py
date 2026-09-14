@@ -10,7 +10,6 @@ from typing import Any
 from .constants import DEFAULT_MAX_RESULTS, MAX_RESULTS, JsonObject
 from .errors import McpError
 
-
 ENTRY_PATTERN = re.compile(r"^[A-Za-z0-9_.-]+(?::[A-Za-z0-9_.-]+)?$")
 MAP_ID_PATTERN = re.compile(r"^[A-Za-z]{2,5}\d{5}$")
 COLOR_TOKEN_PATTERN = re.compile(r"^(#[0-9A-Fa-f]{3}(?:[0-9A-Fa-f]{3})?|[A-Za-z][A-Za-z0-9_-]*)$")

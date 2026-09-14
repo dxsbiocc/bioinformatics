@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from typing import Any
 
-
 LATEST_PROTOCOL_VERSION = "2025-11-25"
 SUPPORTED_PROTOCOL_VERSIONS = {
     LATEST_PROTOCOL_VERSION,

@@ -18,7 +18,6 @@ from .urls import (
 )
 from .utils import compact_strings, normalize_space
 
-
 FEATURE_CATEGORY_LABELS = {
     "molecule": "Molecule",
     "region": "Domains and regions",

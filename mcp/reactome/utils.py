@@ -10,7 +10,6 @@ from typing import Any
 from .constants import JsonObject
 from .errors import McpError
 
-
 HTML_TAG_PATTERN = re.compile(r"<[^>]+>")
 REACTOME_STABLE_ID_PATTERN = re.compile(r"^R-[A-Z]{3}-\d+(?:\.\d+)?$", re.IGNORECASE)
 

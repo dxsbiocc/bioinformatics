@@ -408,7 +408,7 @@ def kegg_conversion_record(
             chip_label=f"{source_db_or_entries} -> {target_db}",
             title=title,
             subtitle=f"{len(rows)} rows",
-            description=f"Identifier conversion rows returned by KEGG conv.",
+            description="Identifier conversion rows returned by KEGG conv.",
             metadata=compact_fields(("Source", source_db_or_entries), ("Target", target_db), ("Rows", len(rows))),
             badges=compact_badges(("KEGG", "source"), ("conv", "operation"), (target_db, "target")),
             links=links,

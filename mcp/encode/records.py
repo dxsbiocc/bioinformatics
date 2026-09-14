@@ -7,7 +7,6 @@ from typing import Any
 from .constants import ENCODE_BASE_URL, RECORD_SCHEMA_VERSION, JsonObject
 from .utils import normalize_space, safe_list
 
-
 ORGANISM_LABELS = {
     "human": "Homo sapiens",
     "mouse": "Mus musculus",

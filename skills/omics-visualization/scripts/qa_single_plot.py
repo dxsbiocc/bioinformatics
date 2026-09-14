@@ -12,7 +12,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from typing import Any
 
-
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 
 

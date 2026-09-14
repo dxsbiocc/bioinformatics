@@ -27,7 +27,6 @@ from .records import (
 from .sra import SRA_ACCESSION_RE, sra_lookup, sra_search
 from .utils import normalize_space, optional_bool, optional_int, source_info
 
-
 DEFAULT_RUNTIME_TOOLS = [
     "prefetch",
     "fasterq-dump",

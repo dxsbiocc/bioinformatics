@@ -2,15 +2,14 @@
 
 from __future__ import annotations
 
+import html
 import re
 import time
 import urllib.parse
-import html
 from typing import Any
 
 from .constants import CHEBI_WEBSITE_BASE_URL, DEFAULT_RESULTS, MAX_RESULTS, JsonObject
 from .errors import McpError
-
 
 CHEBI_RE = re.compile(r"^(?:CHEBI:)?\d+$", re.IGNORECASE)
 HTML_TAG_RE = re.compile(r"<[^>]+>")

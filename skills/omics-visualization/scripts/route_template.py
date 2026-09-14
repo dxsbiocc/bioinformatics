@@ -17,7 +17,6 @@ import sys
 from pathlib import Path
 from typing import Any
 
-
 DEFAULT_CONTRACTS = Path(__file__).resolve().parents[1] / "references" / "template_contracts.json"
 SIDECAR_STEMS = {
     "annot",

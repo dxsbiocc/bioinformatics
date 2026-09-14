@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from .constants import RECORD_SCHEMA_VERSION, RNACENTRAL_WEBSITE_BASE_URL, JsonObject
+from .constants import RECORD_SCHEMA_VERSION, JsonObject
 from .utils import compact_strings, normalize_space, rnacentral_api_url, rnacentral_website_url, safe_dict, safe_list
 
 

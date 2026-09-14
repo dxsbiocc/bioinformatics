@@ -6,7 +6,7 @@ import time
 import urllib.parse
 from typing import Any
 
-from .constants import DEFAULT_RESULTS, HMDB_CATEGORIES, HMDB_BASE_URL, MAX_RESULTS, SEARCH_PATH, JsonObject
+from .constants import DEFAULT_RESULTS, HMDB_BASE_URL, HMDB_CATEGORIES, MAX_RESULTS, JsonObject
 from .errors import McpError
 
 

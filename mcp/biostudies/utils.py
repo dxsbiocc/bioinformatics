@@ -9,7 +9,6 @@ from typing import Any
 from .constants import JsonObject
 from .errors import McpError
 
-
 ACCESSION_RE = re.compile(r"^[A-Z]+-[A-Z0-9]+(?:-[A-Z0-9]+)*$", re.IGNORECASE)
 
 

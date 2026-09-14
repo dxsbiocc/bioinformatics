@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import urllib.parse
-from typing import Any
 
 from .constants import (
     MAX_SYNONYMS,

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from mcp.dynamic_context import build_dynamic_context_response
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
+
 from .client import CbioPortalClient
 from .constants import (
     DEFAULT_CLINICAL_IDS,
@@ -32,14 +33,9 @@ from .records import (
     cbioportal_study_record,
     cbioportal_survival_data_record,
 )
-
-
-CNA_EVENT_TYPES = {"HOMDEL_AND_AMP", "HOMDEL", "AMP", "GAIN", "HETLOSS", "DIPLOID", "ALL"}
-CBIOPORTAL_CONTEXT_TYPES = ["all", "studies", "study", "profiles", "sample_lists", "clinical_attributes", "fetch_context"]
-CBIOPORTAL_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"
 from .utils import (
-    optional_clinical_data_type,
     optional_bool,
+    optional_clinical_data_type,
     optional_identifier_list,
     optional_int,
     optional_int_list,
@@ -51,6 +47,10 @@ from .utils import (
     require_study_id,
     source_info,
 )
+
+CNA_EVENT_TYPES = {"HOMDEL_AND_AMP", "HOMDEL", "AMP", "GAIN", "HETLOSS", "DIPLOID", "ALL"}
+CBIOPORTAL_CONTEXT_TYPES = ["all", "studies", "study", "profiles", "sample_lists", "clinical_attributes", "fetch_context"]
+CBIOPORTAL_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"
 
 
 def cbioportal_status(args: JsonObject, client: CbioPortalClient) -> JsonObject:
@@ -451,7 +451,7 @@ def cbioportal_clinical_data_fetch(args: JsonObject, client: CbioPortalClient) -
         "source": source_with_headers(endpoint, params, headers, api_url, method="POST", body=body),
     }
     if sample_list_id:
-        response["sample_ids_source"] = source_with_headers("sample-lists/{sample_list_id}/sample-ids".format(sample_list_id=sample_list_id), {}, sample_ids_headers, sample_ids_api_url)
+        response["sample_ids_source"] = source_with_headers(f"sample-lists/{sample_list_id}/sample-ids", {}, sample_ids_headers, sample_ids_api_url)
     response["provenance"] = response["source"]
     if include_raw:
         response["raw"] = {"sample_ids": sample_ids_payload, "clinical_data": payload}

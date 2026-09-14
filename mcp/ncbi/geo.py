@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from .client import NcbiClient
 from .constants import MAX_GEO_IDS, JsonObject
@@ -17,7 +18,6 @@ from .utils import (
     require_non_empty_string,
     source_info,
 )
-
 
 GEO_ENTRY_TYPES = {
     "all": None,

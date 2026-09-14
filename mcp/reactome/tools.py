@@ -2,17 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from mcp.dynamic_context import build_dynamic_context_response
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
-from typing import Callable
 
 from .client import ReactomeClient
 from .constants import (
     MAX_PARTICIPANTS,
-    MAX_REFERENCES,
     MAX_SEARCH_RESULTS,
-    REACTOME_CONTENT_API_BASE_URL,
-    REACTOME_WEBSITE_BASE_URL,
     RESULT_SCHEMA_VERSION,
     JsonObject,
 )
@@ -28,7 +26,6 @@ from .utils import (
     require_stable_id,
     source_info,
 )
-
 
 REACTOME_CONTEXT_TYPES = ["all", "search", "pathway", "identifier", "species", "resources"]
 REACTOME_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"

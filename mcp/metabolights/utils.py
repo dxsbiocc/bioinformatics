@@ -10,7 +10,6 @@ from typing import Any
 from .constants import JsonObject
 from .errors import McpError
 
-
 MTBLS_RE = re.compile(r"^MTBLS\d+$", re.IGNORECASE)
 HTML_TAG_RE = re.compile(r"<[^>]+>")
 

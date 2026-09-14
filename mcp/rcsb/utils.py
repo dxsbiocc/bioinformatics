@@ -9,7 +9,6 @@ from typing import Any
 from .constants import JsonObject
 from .errors import McpError
 
-
 PDB_ID_PATTERN = re.compile(r"^[A-Za-z0-9]{4}$")
 
 

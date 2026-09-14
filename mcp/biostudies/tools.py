@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
+
 from .client import BioStudiesClient
 from .constants import DEFAULT_FILES, DEFAULT_RESULTS, MAX_FILES, MAX_RESULTS, RESULT_SCHEMA_VERSION, JsonObject
 from .errors import BioStudiesError

@@ -6,7 +6,6 @@ import pathlib
 import sys
 import unittest
 
-
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tests"))
 from frontend_contract_assertions import assert_result_frontend_contract

@@ -19,7 +19,30 @@ dependencies = [
 #   python3 -m unittest discover -s tests
 
 [project.optional-dependencies]
-# No optional dependencies today. Kept as an explicit empty group so future
-# dev-only tooling (linters, coverage) has a documented place to go instead
-# of being installed ad hoc.
-dev = []
+dev = ["ruff>=0.6"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes (unused imports/names, undefined names)
+    "I",   # isort (import sorting)
+    "UP",  # pyupgrade (modernize syntax for the target Python version)
+]
+ignore = [
+    # The codebase's existing style favors long single-line imports and
+    # JSON-record construction over wrapping; no formatter has ever been run
+    # here, and enforcing this now would mean reflowing ~1000 pre-existing
+    # lines for no functional benefit. Revisit if `ruff format` is adopted.
+    "E501",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Every test file inserts tests/ onto sys.path before importing the shared
+# frontend_contract_assertions helper, and most exec the server module under
+# test from its file path before referencing it - both require imports (or
+# import-like statements) after a preceding statement.
+"tests/*.py" = ["E402"]

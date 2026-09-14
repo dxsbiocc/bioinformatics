@@ -2,15 +2,15 @@
 
 from __future__ import annotations
 
-from typing import Callable
+from collections.abc import Callable
 
 from mcp.dynamic_context import build_dynamic_context_response
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 
 from .client import KeggClient
 from .constants import (
-    COMMON_DATABASES,
     COLOR_URL_FORMS,
+    COMMON_DATABASES,
     DEFAULT_MAX_RESULTS,
     FIND_OPTIONS,
     GET_OPTIONS,
@@ -24,8 +24,8 @@ from .constants import (
 from .errors import McpError
 from .parsers import parse_fasta, parse_flat_records, parse_link_rows, tsv_records
 from .records import (
-    kegg_conversion_record,
     kegg_colored_pathway_record,
+    kegg_conversion_record,
     kegg_download_record,
     kegg_entry_record,
     kegg_info_record,
@@ -35,20 +35,19 @@ from .records import (
 )
 from .utils import (
     join_dbentries,
+    normalize_color_spec,
+    normalize_entry_id,
     optional_bool,
     optional_enum,
     optional_float,
     optional_max_results,
     optional_string,
-    normalize_color_spec,
-    normalize_entry_id,
     require_color_items,
     require_entry_ids,
     require_map_id,
     require_non_empty_string,
     source_info,
 )
-
 
 KEGG_CONTEXT_TYPES = ["all", "databases", "organisms", "pathways", "coloring"]
 KEGG_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"

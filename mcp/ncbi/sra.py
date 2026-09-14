@@ -21,7 +21,6 @@ from .utils import (
     text_from_child,
 )
 
-
 SRA_ACCESSION_RE = re.compile(
     r"^(SRR|ERR|DRR|SRX|ERX|DRX|SRS|ERS|DRS|SRP|ERP|DRP|SRA|ERA|DRA)\d+$",
     re.IGNORECASE,

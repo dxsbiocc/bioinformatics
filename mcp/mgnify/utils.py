@@ -9,7 +9,6 @@ from typing import Any
 from .constants import JsonObject
 from .errors import McpError
 
-
 MGYS_RE = re.compile(r"^MGYS\d+$", re.IGNORECASE)
 SAMPLE_RE = re.compile(r"^[A-Z]+[A-Z0-9_.-]*\d+$", re.IGNORECASE)
 

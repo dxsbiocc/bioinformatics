@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from mcp.dynamic_context import build_dynamic_context_response
 from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
-from typing import Callable
 
 from .bioproject import bioproject_lookup
 from .biosample import biosample_lookup
@@ -31,7 +32,6 @@ from .records import ncbi_database_url, ncbi_record_url
 from .sra import sra_lookup, sra_search
 from .taxonomy import taxonomy_lookup
 from .utils import optional_bool, optional_int, parse_count, source_info
-
 
 NCBI_CONTEXT_TYPES = ["all", "databases", "literature", "omics", "entities", "links"]
 NCBI_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"

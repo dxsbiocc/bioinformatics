@@ -6,9 +6,8 @@ import re
 import time
 from typing import Any
 
-from .constants import DEFAULT_RECENT_DAYS, DEFAULT_RESULTS, JsonObject, MAX_RESULTS, SUPPORTED_SERVERS
+from .constants import DEFAULT_RECENT_DAYS, DEFAULT_RESULTS, MAX_RESULTS, SUPPORTED_SERVERS, JsonObject
 from .errors import McpError
-
 
 DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 

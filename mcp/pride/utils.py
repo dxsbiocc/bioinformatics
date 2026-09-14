@@ -9,7 +9,6 @@ from typing import Any
 from .constants import JsonObject
 from .errors import McpError
 
-
 PXD_RE = re.compile(r"^PXD\d{6,}$", re.IGNORECASE)
 
 

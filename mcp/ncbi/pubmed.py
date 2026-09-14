@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 import xml.etree.ElementTree as ET
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any
 
 from .client import NcbiClient
 from .constants import MAX_PUBMED_IDS, JsonObject
