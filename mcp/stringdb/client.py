@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import os
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass
 from typing import Callable
+
+import httpx
 
 from .constants import (
     DEFAULT_CALLER_IDENTITY,
@@ -53,7 +53,7 @@ class StringDbClient:
         self,
         config: StringDbConfig | None = None,
         *,
-        opener: Callable[[urllib.request.Request, float], str] | None = None,
+        opener: Callable[[httpx.Request, float], str] | None = None,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -62,6 +62,21 @@ class StringDbClient:
         self._sleep = sleep
         self._monotonic = monotonic
         self._last_request_at = 0.0
+        self._http: httpx.Client | None = None
+
+    @property
+    def _client(self) -> httpx.Client:
+        if self._http is None:
+            self._http = httpx.Client(
+                http2=True,
+                timeout=httpx.Timeout(self.config.timeout_seconds),
+            )
+        return self._http
+
+    def close(self) -> None:
+        if self._http is not None:
+            self._http.close()
+            self._http = None
 
     @property
     def requests_per_second(self) -> int:
@@ -107,7 +122,8 @@ class StringDbClient:
         return f"{url}?{encoded}"
 
     def _open_url(self, url: str, label: str, accept: str) -> tuple[str, dict[str, str]]:
-        request = urllib.request.Request(
+        request = httpx.Request(
+            "GET",
             url,
             headers={
                 "Accept": accept,
@@ -119,27 +135,25 @@ class StringDbClient:
                 return self._opener(request, self.config.timeout_seconds), {}
             for attempt in range(self.config.max_retries + 1):
                 try:
-                    with urllib.request.urlopen(
-                        request,
-                        timeout=self.config.timeout_seconds,
-                    ) as response:
-                        headers = {
-                            key.lower(): value
-                            for key, value in response.headers.items()
-                        }
-                        text = response.read().decode("utf-8", errors="replace")
-                        return text, headers
-                except urllib.error.URLError:
+                    response = self._client.send(request)
+                    response.raise_for_status()
+                    headers = {
+                        key.lower(): value
+                        for key, value in response.headers.items()
+                    }
+                    text = response.read().decode("utf-8", errors="replace")
+                    return text, headers
+                except httpx.RequestError:
                     if attempt >= self.config.max_retries:
                         raise
                     self._sleep(self.config.retry_base_seconds * (attempt + 1))
             raise StringDbError(f"Could not reach STRING {label}")
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text
             raise StringDbError(
-                f"STRING {label} returned HTTP {exc.code}: {detail[:500]}"
+                f"STRING {label} returned HTTP {exc.response.status_code}: {detail[:500]}"
             ) from exc
-        except urllib.error.URLError as exc:
+        except httpx.RequestError as exc:
             raise StringDbError(f"Could not reach STRING {label}: {exc}") from exc
 
     def _throttle(self) -> None:
