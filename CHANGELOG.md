@@ -1,5 +1,45 @@
 # Changelog
 
+## Unreleased - Shared MCP Server Scaffold - 2026-09-14
+
+### Added
+
+- `mcp/rpc.py`: a shared JSON-RPC/MCP dispatcher (`McpServer`), error
+  builders, and stdio read loop (`serve_stdio`) used by all 28 network-backed
+  servers. Every server previously hand-wrote an identical
+  initialize/tools-list/tools-call dispatch class and stdin loop.
+- `mcp/http_client.py`: a shared `PacedHttpClient` (one reused
+  `httpx.Client(http2=True)` with throttling, bounded retry on transport
+  failures only, and uniform error mapping to a server-supplied
+  `UpstreamError` subclass) used by all 29 servers' clients. Every server
+  previously owned an identical httpx.Client lifecycle/retry/error-mapping
+  implementation as a direct consequence of migrating off `urllib`
+  independently.
+- 38 new unit tests for both modules (`tests/test_rpc.py`,
+  `tests/test_http_client.py`), including the first direct coverage - via
+  `httpx.MockTransport` - of the retry/HTTP-status-vs-transport-error
+  branching; previously that logic was only reachable through the
+  network-gated live smoke tests.
+
+### Changed
+
+- Every server's `errors.py`, `client.py`, and `server.py` now delegate to
+  the shared modules instead of duplicating this scaffolding 29 times.
+  `visualization` (the one server with no network client and single-argument
+  tool handlers) keeps its own dispatcher rather than forcing it into a
+  shape built for the client-backed servers.
+- Fixes an inconsistency found along the way: 5 servers (`ncbi`, `alphafold`,
+  `rcsb`, `stringdb`, `uniprot`) had no dedicated `except <X>Error` branch in
+  `serve_stdio`, so their own domain errors were logged to stderr like an
+  unexpected exception instead of being treated as an expected upstream
+  failure like the other 24 servers. All 29 now behave the same way.
+- Net effect across `mcp/` and the two new/adjusted test files: -3440 lines
+  (1601 insertions, 5041 deletions across 90 files) while behavior is
+  unchanged - verified per-batch against the full test suite (360 tests)
+  and live calls covering every request shape (GET, tuple-returning opener,
+  GraphQL POST, dynamic GET/POST, HMDB's Cloudflare-challenge detection,
+  KEGG's configurable pacing).
+
 ## Unreleased - Continuous Integration - 2026-09-14
 
 ### Added

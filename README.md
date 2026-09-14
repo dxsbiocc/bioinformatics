@@ -9,10 +9,13 @@ set of Skills for running omics analysis, search, and visualization workflows
 on top of them.
 
 Every server speaks MCP over stdio by hand — there is no MCP SDK dependency.
-Outbound HTTP goes through [httpx](https://www.python-httpx.org/) (with
-HTTP/2) using one reused `httpx.Client` per server process, instead of the
-standard library's `urllib`. Responses follow a shared,
-app-renderable record contract (see
+Each is its own process/entry so a host can enable only the databases it
+needs and one server hanging doesn't take down the rest, but the JSON-RPC
+dispatch loop ([mcp/rpc.py](mcp/rpc.py)) and outbound HTTP handling
+([mcp/http_client.py](mcp/http_client.py) — one reused `httpx.Client` with
+HTTP/2, pacing, and retry, instead of the standard library's `urllib`) are
+shared modules every server imports rather than 29 copies of the same code.
+Responses follow a shared, app-renderable record contract (see
 [docs/frontend-record-rendering.md](docs/frontend-record-rendering.md)) so a
 front end can render results consistently across all 29 servers without
 per-database special-casing.
