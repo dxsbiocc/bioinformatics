@@ -1,5 +1,7 @@
 # Bioinformatics MCP Plugin
 
+[![CI](https://github.com/dxsbiocc/bioinformatics/actions/workflows/ci.yml/badge.svg)](https://github.com/dxsbiocc/bioinformatics/actions/workflows/ci.yml)
+
 A collection of [Model Context Protocol](https://modelcontextprotocol.io)
 servers that give an LLM agent (Claude, Codex, or any MCP-compatible host) read
 access to major public bioinformatics databases and literature sources, plus a

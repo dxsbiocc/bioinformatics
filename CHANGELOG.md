@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased - Continuous Integration - 2026-09-14
+
+### Added
+
+- GitHub Actions CI workflow (`.github/workflows/ci.yml`) running on every
+  push/PR to `main`: installs `httpx[http2]`, byte-compiles `mcp/`, and runs
+  the full `unittest` suite across Python 3.10, 3.11, and 3.12. The gated
+  live-API smoke tests stay off by default, so CI never depends on upstream
+  database availability.
+
 ## Unreleased - HTTP Client Migration - 2026-09-14
 
 ### Changed
