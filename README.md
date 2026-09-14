@@ -72,12 +72,21 @@ arguments before a fetch call). See [docs/mcp-parameter-domains.md](docs/mcp-par
 
 ## Requirements
 
-- Python 3.10+ (developed against 3.12)
-- No third-party Python packages — everything under `mcp/` uses only the
-  standard library.
-- Some servers accept an API key or contact email via environment variables
-  for higher rate limits (e.g. `NCBI_API_KEY`, `CLINVAR_API_KEY`). All are
-  optional; each server works anonymously with public rate limits otherwise.
+- Python 3.10+ (developed against 3.12). No third-party Python packages —
+  everything under `mcp/` uses only the standard library; see
+  [pyproject.toml](pyproject.toml).
+- R 4.x, only if you use the `omics-visualization` or
+  `transcriptomics-analysis` skills' plotting/analysis scripts. Install the
+  required CRAN, Bioconductor, and GitHub packages with:
+
+  ```bash
+  Rscript requirements.R
+  ```
+
+- Some MCP servers accept an API key or contact email via environment
+  variables for higher rate limits (e.g. `NCBI_API_KEY`, `CLINVAR_API_KEY`).
+  All are optional; each server works anonymously with public rate limits
+  otherwise.
 
 ## Installation
 
@@ -102,14 +111,14 @@ plugin pointing at this directory.
 ## Development
 
 ```bash
-# Run the full test suite
-python3 -m pytest tests/
+# Run the full test suite (stdlib unittest, no pytest dependency)
+python3 -m unittest discover -s tests
 
 # Run a single server's tests
-python3 -m pytest tests/test_ncbi_mcp_server.py
+python3 -m unittest tests.test_ncbi_mcp_server -v
 
 # Optional: live smoke tests against real upstream APIs (off by default)
-BIOINFORMATICS_LIVE_MCP_SMOKE=1 python3 -m pytest tests/
+BIOINFORMATICS_LIVE_MCP_SMOKE=1 python3 -m unittest tests.test_live_mcp_smoke -v
 ```
 
 Contract and schema references:

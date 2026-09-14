@@ -1,0 +1,21 @@
+[project]
+name = "bioinformatics-mcp"
+version = "0.1.0"
+description = "Dependency-free MCP servers and skills for public bioinformatics databases"
+requires-python = ">=3.10"
+dependencies = []
+
+# Every MCP server under mcp/ implements the MCP stdio protocol by hand using
+# only the Python standard library (json, urllib, xml, etc.) - there is no
+# MCP SDK or HTTP client dependency to install. This file exists so the
+# absence of dependencies is explicit and versioned, and so tooling (uv, pip,
+# IDEs) can discover the supported Python version.
+#
+# Tests run with the standard library's unittest, not pytest:
+#   python3 -m unittest discover -s tests
+
+[project.optional-dependencies]
+# No optional dependencies today. Kept as an explicit empty group so future
+# dev-only tooling (linters, coverage) has a documented place to go instead
+# of being installed ad hoc.
+dev = []
