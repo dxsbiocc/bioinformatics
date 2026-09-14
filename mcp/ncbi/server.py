@@ -351,6 +351,8 @@ def serve_stdio(server: NcbiMcpServer | None = None) -> None:
             sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
             sys.stdout.flush()
 
+    server.client.close()
+
 
 __all__ = [
     "BIOPROJECT_ACCESSION_RE",

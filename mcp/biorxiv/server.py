@@ -115,6 +115,8 @@ def serve_stdio(server: BioRxivMcpServer | None = None) -> None:
             sys.stdout.write(json.dumps(response, ensure_ascii=False) + "\n")
             sys.stdout.flush()
 
+    server.client.close()
+
 
 __all__ = [
     "BioRxivClient",
