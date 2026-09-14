@@ -1,0 +1,5 @@
+interface:
+  display_name: "Transcriptomics Analysis"
+  short_description: "Analyze bulk, single-cell, and spatial transcriptomics"
+  brand_color: "#6F8F72"
+  default_prompt: "Use $transcriptomics-analysis to analyze these prepared transcriptomics measurements with their sample, cell, or spatial metadata."
