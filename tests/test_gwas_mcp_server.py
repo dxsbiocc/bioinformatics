@@ -190,6 +190,8 @@ class GwasMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "gwas_parameter_domains",
+                "gwas_resolve_context",
                 "gwas_variant_lookup",
                 "gwas_gene_lookup",
                 "gwas_trait_search",
@@ -235,6 +237,15 @@ class GwasMcpServerTests(unittest.TestCase):
         self.assertEqual(record["display"]["component"], "dataset")
         self.assertEqual(record["data"]["total_studies"], 285)
         self.assertEqual(record["data"]["studies"][0]["accession_id"], "GCST90984699")
+
+    def test_resolve_context_returns_variant_candidate_and_calls(self) -> None:
+        result = self.call_tool("gwas_resolve_context", {"rs_id": "rs699", "max_results": 4})
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(result["entities"][0]["value"], "rs699")
+        self.assertIn("rs699", result["entities"][0]["url"])
+        tool_names = {call["tool_name"] for call in result["recommended_calls"]}
+        self.assertIn("gwas_variant_lookup", tool_names)
+        self.assertIn("ensembl_variation", tool_names)
 
     def test_status_reports_inventory_without_network_by_default(self) -> None:
         result = self.call_tool("gwas_status", {})

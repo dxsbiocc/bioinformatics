@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from mcp.dynamic_context import build_dynamic_context_response
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 import urllib.parse
 from typing import Callable
 
@@ -14,6 +16,7 @@ from .records import (
     pubchem_substance_record,
 )
 from .utils import (
+    normalize_space,
     optional_bool,
     optional_int,
     optional_positive_identifier,
@@ -21,6 +24,10 @@ from .utils import (
     require_non_empty_string,
     source_info,
 )
+
+
+PUBCHEM_CONTEXT_TYPES = ["all", "compounds", "assays", "substances", "namespaces"]
+PUBCHEM_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"
 
 
 def pubchem_status(args: JsonObject, client: PubChemClient) -> JsonObject:
@@ -38,6 +45,7 @@ def pubchem_status(args: JsonObject, client: PubChemClient) -> JsonObject:
         "available_tools": available_tools,
         "available_databases": ["pubchem_compound", "pubchem_substance", "pubchem_bioassay"],
         "tool_groups": {
+            "context": ["pubchem_parameter_domains", "pubchem_resolve_context"],
             "compound": ["pubchem_compound_lookup", "pubchem_compound_search"],
             "assay": ["pubchem_assay_summary"],
             "substance": ["pubchem_substance_lookup"],
@@ -61,6 +69,94 @@ def pubchem_status(args: JsonObject, client: PubChemClient) -> JsonObject:
             "content_type": headers.get("content-type"),
         }
     return status
+
+
+def pubchem_resolve_context(args: JsonObject, client: PubChemClient) -> JsonObject:
+    context_type = optional_context_type(args, "context_type", allowed=PUBCHEM_CONTEXT_TYPES, default="all")
+    query = optional_text(args, "query")
+    cid = optional_positive_identifier(args, "cid")
+    aid = optional_positive_identifier(args, "aid")
+    sid = optional_positive_identifier(args, "sid")
+    max_results = optional_int(args, "max_results", default=5, minimum=1, maximum=MAX_RESULTS)
+    include_raw = optional_bool(args, "include_raw", default=False)
+    contexts = static_pubchem_contexts()
+    recommended_calls: list[JsonObject] = []
+    sources: list[JsonObject] = []
+    raw: JsonObject = {}
+
+    if query:
+        result = pubchem_compound_search(
+            {"query": query, "max_results": max_results, "include_descriptions": True, "include_synonyms": False, "include_raw": include_raw},
+            client,
+        )
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(pubchem_record_context(record) for record in records)
+        for record in records[:3]:
+            recommended_calls.extend(pubchem_recommended_calls(record))
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["compound_search"] = result["raw"]
+
+    if cid:
+        result = pubchem_compound_lookup({"cid": cid, "include_descriptions": True, "include_synonyms": True, "include_raw": include_raw}, client)
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(pubchem_record_context(record) for record in records)
+        for record in records:
+            recommended_calls.extend(pubchem_recommended_calls(record))
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["compound_lookup"] = result["raw"]
+
+    if aid:
+        result = pubchem_assay_summary({"aid": aid, "include_raw": include_raw}, client)
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(pubchem_record_context(record) for record in records)
+        for record in records:
+            recommended_calls.extend(pubchem_recommended_calls(record))
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["assay"] = result["raw"]
+
+    if sid:
+        result = pubchem_substance_lookup({"sid": sid, "include_raw": include_raw}, client)
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(pubchem_record_context(record) for record in records)
+        for record in records:
+            recommended_calls.extend(pubchem_recommended_calls(record))
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["substance"] = result["raw"]
+
+    query_text = query or cid or aid or sid
+    filtered_contexts = [
+        context
+        for context in contexts
+        if pubchem_context_matches(context, context_type=context_type, query=query_text or "")
+    ]
+    return build_dynamic_context_response(
+        schema_version=RESULT_SCHEMA_VERSION,
+        context_schema_version=PUBCHEM_CONTEXT_SCHEMA_VERSION,
+        database="pubchem",
+        query={"context_type": context_type, "query": query, "cid": cid, "aid": aid, "sid": sid},
+        contexts=filtered_contexts,
+        recommended_calls=recommended_calls,
+        max_results=max_results,
+        fallback_source=source_info("resolve_context", {"context_type": context_type, "query": query, "cid": cid, "aid": aid, "sid": sid}),
+        sources=sources,
+        entity_groups={"compounds", "assays", "substances"},
+        raw=raw,
+        include_raw=include_raw,
+        prioritize_entities=True,
+        prioritize_same_server_calls=True,
+    )
 
 
 def pubchem_compound_lookup(args: JsonObject, client: PubChemClient) -> JsonObject:
@@ -380,12 +476,189 @@ def source_with_headers(endpoint: str, params: JsonObject, headers: dict[str, st
     return source
 
 
+def optional_text(args: JsonObject, name: str) -> str:
+    value = args.get(name)
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise McpError(-32602, f"{name} must be a string")
+    return value.strip()
+
+
+def optional_context_type(args: JsonObject, name: str, *, allowed: list[str], default: str) -> str:
+    value = optional_text(args, name) or default
+    if value not in allowed:
+        raise McpError(-32602, f"{name} must be one of: {', '.join(allowed)}")
+    return value
+
+
+def static_pubchem_contexts() -> list[JsonObject]:
+    contexts: list[JsonObject] = [
+        pubchem_parameter_context(
+            "context_type",
+            value,
+            label=value,
+            description="Dynamic PubChem context family to resolve before compound, assay, or substance calls.",
+            kind="enum",
+            group="context_types",
+            url="",
+            metadata={"context_type": value},
+        )
+        for value in PUBCHEM_CONTEXT_TYPES
+    ]
+    contexts.extend(
+        pubchem_parameter_context(
+            "namespace",
+            value,
+            label=label,
+            description="PubChem identifier namespace used by lookup tools.",
+            kind="namespace",
+            group="namespaces",
+            url="https://pubchem.ncbi.nlm.nih.gov/",
+            metadata={"namespace": value},
+        )
+        for value, label in [("cid", "Compound ID"), ("name", "Compound name"), ("aid", "BioAssay ID"), ("sid", "Substance ID")]
+    )
+    return contexts
+
+
+def pubchem_record_context(record: JsonObject) -> JsonObject:
+    data = record.get("data") if isinstance(record.get("data"), dict) else {}
+    record_type = normalize_space(record.get("record_type"))
+    if record_type == "pubchem_assay":
+        parameter_name, group, value = "aid", "assays", normalize_space(data.get("aid") or record.get("id"))
+    elif record_type == "pubchem_substance":
+        parameter_name, group, value = "sid", "substances", normalize_space(data.get("sid") or record.get("id"))
+    else:
+        parameter_name, group, value = "cid", "compounds", normalize_space(data.get("cid") or record.get("id"))
+    return pubchem_parameter_context(
+        parameter_name,
+        value,
+        label=normalize_space(record.get("title") or record.get("label") or value),
+        description=normalize_space(record.get("description") or f"PubChem {group.rstrip('s')} context."),
+        kind=record_type or group.rstrip("s"),
+        group=group,
+        url=normalize_space(record.get("url") or data.get("url")),
+        metadata={
+            "id": value,
+            "title": data.get("title", ""),
+            "name": data.get("name", ""),
+            "molecular_formula": data.get("molecular_formula", ""),
+            "molecular_weight": data.get("molecular_weight", ""),
+            "inchi_key": data.get("inchi_key", ""),
+            "target_gene_id": data.get("target_gene_id", ""),
+            "source_name": data.get("source_name", ""),
+            "compound_cids": data.get("compound_cids", ""),
+        },
+    )
+
+
+def pubchem_parameter_context(
+    parameter_name: str,
+    value: object,
+    *,
+    label: str,
+    description: str,
+    kind: str,
+    group: str,
+    url: str,
+    metadata: JsonObject,
+) -> JsonObject:
+    display_fields = [{"label": key.replace("_", " ").title(), "value": item} for key, item in metadata.items() if item not in ("", None, [], {})]
+    if url:
+        display_fields.append({"label": "URL", "value": url})
+    component = "compound" if group == "compounds" else "dataset"
+    return {
+        "kind": kind,
+        "group": group,
+        "parameter_name": parameter_name,
+        "value": value,
+        "label": label,
+        "title": label,
+        "description": description,
+        "url": url,
+        "metadata": metadata,
+        "display": {
+            "component": component,
+            "chip_label": parameter_name,
+            "icon": "pubchem",
+            "title": label,
+            "subtitle": f"{parameter_name}: {value}",
+            "description": description,
+            "metadata": display_fields,
+            "badges": [{"label": "PubChem", "kind": "source"}, {"label": parameter_name, "kind": "parameter"}],
+            "actions": [{"label": "Open source", "url": url, "kind": "external", "primary": True}] if url else [],
+            "hover": {"title": label, "subtitle": f"{parameter_name}: {value}", "icon": "pubchem", "fields": display_fields},
+            "primary_url": url,
+        },
+    }
+
+
+def pubchem_recommended_calls(record: JsonObject) -> list[JsonObject]:
+    data = record.get("data") if isinstance(record.get("data"), dict) else {}
+    record_type = normalize_space(record.get("record_type"))
+    if record_type == "pubchem_assay":
+        aid = normalize_space(data.get("aid") or record.get("id"))
+        calls = [{"tool_name": "pubchem_assay_summary", "arguments": {"aid": aid}, "reason": "Fetch PubChem BioAssay summary and target metadata."}]
+        if data.get("target_gene_id"):
+            calls.append({"server": "ncbi", "tool_name": "gene_lookup", "arguments": {"gene_id": str(data["target_gene_id"])}, "reason": "Open NCBI Gene context for this assay target."})
+        return calls
+    if record_type == "pubchem_substance":
+        sid = normalize_space(data.get("sid") or record.get("id"))
+        calls = [{"tool_name": "pubchem_substance_lookup", "arguments": {"sid": sid}, "reason": "Fetch PubChem Substance depositor metadata and linked compounds."}]
+        for cid in data.get("compound_cids", []) if isinstance(data.get("compound_cids"), list) else []:
+            calls.append({"tool_name": "pubchem_compound_lookup", "arguments": {"cid": cid}, "reason": "Open linked PubChem compound context."})
+        return calls
+    cid = normalize_space(data.get("cid") or record.get("id"))
+    return [
+        {"tool_name": "pubchem_compound_lookup", "arguments": {"cid": cid}, "reason": "Fetch PubChem compound properties, descriptions, synonyms, and structure previews."},
+        {"server": "chembl", "tool_name": "chembl_resolve_context", "arguments": {"query": data.get("title") or cid}, "reason": "Resolve related ChEMBL molecule context for this compound."},
+        {"server": "chebi", "tool_name": "chebi_compound_search", "arguments": {"query": data.get("title") or cid}, "reason": "Search ChEBI for ontology context for this compound."},
+    ]
+
+
+def pubchem_context_matches(context: JsonObject, *, context_type: str, query: str) -> bool:
+    if context_type != "all" and context.get("group") != context_type:
+        return False
+    if not query:
+        return True
+    metadata = context.get("metadata")
+    haystack_values = [context.get("parameter_name"), context.get("value"), context.get("label"), context.get("description"), context.get("kind")]
+    if isinstance(metadata, dict):
+        haystack_values.extend(metadata.values())
+    haystack = " ".join(str(item).lower() for item in haystack_values if item not in ("", None))
+    return query.lower() in haystack or context.get("group") in {"compounds", "assays", "substances"}
+
+
 def tool_definitions() -> list[JsonObject]:
     read_only_annotations = {
         "readOnlyHint": True,
         "openWorldHint": True,
     }
     return [
+        parameter_domains_tool_definition("pubchem_parameter_domains"),
+        {
+            "name": "pubchem_resolve_context",
+            "title": "Resolve PubChem dynamic parameter context",
+            "description": (
+                "Resolve PubChem compound names/CIDs, BioAssay AIDs, and Substance SIDs before lookup calls. "
+                "Returns front-end-friendly context rows, PubChem URLs, and recommended follow-up calls."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "context_type": {"type": "string", "enum": PUBCHEM_CONTEXT_TYPES, "default": "all"},
+                    "query": {"type": "string", "description": "Optional compound name such as aspirin."},
+                    "cid": {"type": ["integer", "string"], "description": "Optional PubChem CID such as 2244."},
+                    "aid": {"type": ["integer", "string"], "description": "Optional PubChem AID such as 1706."},
+                    "sid": {"type": ["integer", "string"], "description": "Optional PubChem SID such as 4594."},
+                    "max_results": {"type": "integer", "minimum": 1, "maximum": MAX_RESULTS, "default": 5},
+                    "include_raw": {"type": "boolean", "default": False},
+                },
+                "additionalProperties": False,
+            },
+            "annotations": read_only_annotations,
+        },
         {
             "name": "pubchem_compound_lookup",
             "title": "Look up a PubChem compound",
@@ -474,6 +747,8 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS: dict[str, Callable[[JsonObject, PubChemClient], JsonObject]] = {
+    "pubchem_parameter_domains": make_parameter_domains_handler("pubchem", "pubchem_parameter_domains", tool_definitions),
+    "pubchem_resolve_context": pubchem_resolve_context,
     "pubchem_compound_lookup": pubchem_compound_lookup,
     "pubchem_compound_search": pubchem_compound_search,
     "pubchem_assay_summary": pubchem_assay_summary,

@@ -151,6 +151,8 @@ class ChebiMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "chebi_parameter_domains",
+                "chebi_resolve_context",
                 "chebi_compound_search",
                 "chebi_compound_lookup",
                 "chebi_ontology_children",
@@ -183,6 +185,15 @@ class ChebiMcpServerTests(unittest.TestCase):
         )
         self.assertEqual(result["total"], 2)
         self.assertEqual(self.client.calls[-1][1]["size"], 2)
+
+    def test_resolve_context_returns_compound_candidate_and_calls(self) -> None:
+        result = self.call_tool("chebi_resolve_context", {"query": "caffeine", "max_results": 2})
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(result["entities"][0]["value"], "CHEBI:27732")
+        self.assertIn("CHEBI:27732", result["entities"][0]["url"])
+        tool_names = {call["tool_name"] for call in result["recommended_calls"]}
+        self.assertIn("chebi_compound_lookup", tool_names)
+        self.assertIn("chebi_ontology_children", tool_names)
 
     def test_children_returns_ontology_relation_network_preview(self) -> None:
         result = self.call_tool("chebi_ontology_children", {"chebi_id": "27732", "max_results": 1})

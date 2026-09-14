@@ -165,6 +165,8 @@ class PubChemMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "pubchem_parameter_domains",
+                "pubchem_resolve_context",
                 "pubchem_compound_lookup",
                 "pubchem_compound_search",
                 "pubchem_assay_summary",
@@ -211,6 +213,15 @@ class PubChemMcpServerTests(unittest.TestCase):
         )
         self.assertEqual(result["total"], 1)
         self.assertEqual(result["records"][0]["data"]["cid"], "2244")
+
+    def test_resolve_context_returns_compound_candidate_and_calls(self) -> None:
+        result = self.call_tool("pubchem_resolve_context", {"query": "aspirin", "max_results": 4})
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(result["entities"][0]["value"], "2244")
+        self.assertIn("/compound/2244", result["entities"][0]["url"])
+        tool_names = {call["tool_name"] for call in result["recommended_calls"]}
+        self.assertIn("pubchem_compound_lookup", tool_names)
+        self.assertIn("chembl_resolve_context", tool_names)
 
     def test_assay_summary_returns_frontend_compatible_dataset_record(self) -> None:
         result = self.call_tool("pubchem_assay_summary", {"aid": 1706})

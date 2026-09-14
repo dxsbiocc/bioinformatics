@@ -158,6 +158,8 @@ class OpenTargetsMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "opentargets_parameter_domains",
+                "opentargets_resolve_context",
                 "opentargets_target_lookup",
                 "opentargets_disease_lookup",
                 "opentargets_search",
@@ -208,6 +210,18 @@ class OpenTargetsMcpServerTests(unittest.TestCase):
         record = result["records"][0]
         self.assertEqual(record["data"]["hits"][0]["label"], "TP53")
         self.assertEqual(record["data"]["hits"][1]["entity"], "disease")
+
+    def test_resolve_context_returns_search_entities_and_calls(self) -> None:
+        result = self.call_tool(
+            "opentargets_resolve_context",
+            {"query": "TP53", "max_results": 2},
+        )
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(result["entities"][0]["value"], "ENSG00000141510")
+        self.assertIn("/target/ENSG00000141510", result["entities"][0]["url"])
+        tool_names = {call["tool_name"] for call in result["recommended_calls"]}
+        self.assertIn("opentargets_target_lookup", tool_names)
+        self.assertIn("opentargets_disease_lookup", tool_names)
 
     def test_status_reports_inventory_without_network_by_default(self) -> None:
         result = self.call_tool("opentargets_status", {})

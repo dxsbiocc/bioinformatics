@@ -2,23 +2,30 @@
 
 from __future__ import annotations
 
+from mcp.dynamic_context import build_dynamic_context_response
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 from typing import Callable
 
 from .client import OpenTargetsClient
 from .constants import MAX_RESULTS, RESULT_SCHEMA_VERSION, JsonObject
-from .errors import OpenTargetsError
+from .errors import McpError, OpenTargetsError
 from .records import (
     opentargets_disease_record,
     opentargets_search_record,
     opentargets_target_record,
 )
 from .utils import (
+    normalize_space,
     optional_bool,
     optional_entity_names,
     optional_int,
     require_non_empty_string,
     source_info,
 )
+
+
+OPENTARGETS_CONTEXT_TYPES = ["all", "search", "targets", "diseases", "entity_names"]
+OPENTARGETS_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"
 
 
 TARGET_QUERY = """
@@ -153,6 +160,7 @@ def opentargets_status(args: JsonObject, client: OpenTargetsClient) -> JsonObjec
         "available_tools": available_tools,
         "available_databases": ["opentargets"],
         "tool_groups": {
+            "context": ["opentargets_parameter_domains", "opentargets_resolve_context"],
             "target": ["opentargets_target_lookup"],
             "disease": ["opentargets_disease_lookup"],
             "search": ["opentargets_search"],
@@ -176,6 +184,89 @@ def opentargets_status(args: JsonObject, client: OpenTargetsClient) -> JsonObjec
             "data_version": version_label(meta.get("dataVersion")),
         }
     return status
+
+
+def opentargets_resolve_context(args: JsonObject, client: OpenTargetsClient) -> JsonObject:
+    context_type = optional_context_type(args, "context_type", allowed=OPENTARGETS_CONTEXT_TYPES, default="all")
+    query = optional_text(args, "query")
+    ensembl_id = optional_text(args, "ensembl_id")
+    efo_id = optional_text(args, "efo_id")
+    entity_names = optional_entity_names(args) if "entity_names" in args else ["target", "disease"]
+    max_results = optional_int(args, "max_results", default=10, minimum=1, maximum=MAX_RESULTS)
+    include_raw = optional_bool(args, "include_raw", default=False)
+    contexts = static_opentargets_contexts()
+    recommended_calls: list[JsonObject] = []
+    sources: list[JsonObject] = []
+    raw: JsonObject = {}
+
+    if query:
+        result = opentargets_search(
+            {"query": query, "entity_names": entity_names, "max_results": max_results, "include_raw": include_raw},
+            client,
+        )
+        for record in [record for record in result.get("records", []) if isinstance(record, dict)]:
+            hits = record.get("data", {}).get("hits") if isinstance(record.get("data"), dict) else []
+            for hit in hits if isinstance(hits, list) else []:
+                if isinstance(hit, dict):
+                    contexts.append(opentargets_hit_context(hit))
+                    recommended_calls.extend(opentargets_hit_recommended_calls(hit))
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["search"] = result["raw"]
+
+    if ensembl_id:
+        result = opentargets_target_lookup({"ensembl_id": ensembl_id, "max_results": max_results, "include_raw": include_raw}, client)
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(opentargets_record_context(record) for record in records)
+        for record in records:
+            recommended_calls.extend(opentargets_record_recommended_calls(record))
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["target"] = result["raw"]
+
+    if efo_id:
+        result = opentargets_disease_lookup({"efo_id": efo_id, "max_results": max_results, "include_raw": include_raw}, client)
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(opentargets_record_context(record) for record in records)
+        for record in records:
+            recommended_calls.extend(opentargets_record_recommended_calls(record))
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["disease"] = result["raw"]
+
+    filtered_contexts = [
+        context
+        for context in contexts
+        if opentargets_context_matches(context, context_type=context_type, query=query or ensembl_id or efo_id)
+    ]
+    return build_dynamic_context_response(
+        schema_version=RESULT_SCHEMA_VERSION,
+        context_schema_version=OPENTARGETS_CONTEXT_SCHEMA_VERSION,
+        database="opentargets",
+        query={
+            "context_type": context_type,
+            "query": query,
+            "ensembl_id": ensembl_id,
+            "efo_id": efo_id,
+            "entity_names": entity_names,
+        },
+        contexts=filtered_contexts,
+        recommended_calls=recommended_calls,
+        max_results=max_results,
+        fallback_source=source_info("resolve_context", {"context_type": context_type, "query": query, "ensembl_id": ensembl_id, "efo_id": efo_id}),
+        sources=sources,
+        entity_groups={"targets", "diseases"},
+        raw=raw,
+        include_raw=include_raw,
+        prioritize_entities=True,
+        prioritize_same_server_calls=True,
+    )
 
 
 def opentargets_target_lookup(args: JsonObject, client: OpenTargetsClient) -> JsonObject:
@@ -346,12 +437,196 @@ def source_with_headers(operation: str, variables: JsonObject, headers: dict[str
     return source
 
 
+def optional_text(args: JsonObject, name: str) -> str:
+    value = args.get(name)
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise McpError(-32602, f"{name} must be a string")
+    return value.strip()
+
+
+def optional_context_type(args: JsonObject, name: str, *, allowed: list[str], default: str) -> str:
+    value = optional_text(args, name) or default
+    if value not in allowed:
+        raise McpError(-32602, f"{name} must be one of: {', '.join(allowed)}")
+    return value
+
+
+def static_opentargets_contexts() -> list[JsonObject]:
+    contexts: list[JsonObject] = [
+        opentargets_parameter_context(
+            "context_type",
+            value,
+            label=value,
+            description="Dynamic Open Targets context family to resolve before target, disease, or search calls.",
+            kind="enum",
+            group="context_types",
+            url="",
+            metadata={"context_type": value},
+        )
+        for value in OPENTARGETS_CONTEXT_TYPES
+    ]
+    contexts.extend(
+        opentargets_parameter_context(
+            "entity_names",
+            value,
+            label=value,
+            description="Open Targets search entity filter.",
+            kind="entity_name",
+            group="entity_names",
+            url="",
+            metadata={"entity_name": value, "tool_hint": "opentargets_search"},
+        )
+        for value in ["target", "disease"]
+    )
+    return contexts
+
+
+def opentargets_record_context(record: JsonObject) -> JsonObject:
+    data = record.get("data") if isinstance(record.get("data"), dict) else {}
+    record_type = normalize_space(record.get("record_type"))
+    if record_type == "opentargets_disease":
+        parameter_name, group, value = "efo_id", "diseases", normalize_space(data.get("disease_id") or record.get("id"))
+    else:
+        parameter_name, group, value = "ensembl_id", "targets", normalize_space(data.get("target_id") or record.get("id"))
+    return opentargets_parameter_context(
+        parameter_name,
+        value,
+        label=normalize_space(record.get("title") or record.get("label") or value),
+        description=normalize_space(record.get("description") or data.get("description") or data.get("name")),
+        kind=record_type or group.rstrip("s"),
+        group=group,
+        url=normalize_space(record.get("url") or data.get("url")),
+        metadata={
+            "id": value,
+            "symbol": data.get("symbol", ""),
+            "name": data.get("name", ""),
+            "biotype": data.get("biotype", ""),
+            "associated_diseases": data.get("total_associated_diseases", ""),
+            "associated_targets": data.get("total_associated_targets", ""),
+        },
+    )
+
+
+def opentargets_hit_context(hit: JsonObject) -> JsonObject:
+    entity = normalize_space(hit.get("entity"))
+    identifier = normalize_space(hit.get("id"))
+    group = "diseases" if entity == "disease" else "targets"
+    parameter_name = "efo_id" if entity == "disease" else "ensembl_id"
+    return opentargets_parameter_context(
+        parameter_name,
+        identifier,
+        label=normalize_space(hit.get("label") or identifier),
+        description=normalize_space(hit.get("description") or entity),
+        kind=f"search_{entity or 'hit'}",
+        group=group,
+        url=normalize_space(hit.get("url")),
+        metadata={"id": identifier, "entity": entity, "score": hit.get("score", ""), "label": hit.get("label", "")},
+    )
+
+
+def opentargets_parameter_context(
+    parameter_name: str,
+    value: object,
+    *,
+    label: str,
+    description: str,
+    kind: str,
+    group: str,
+    url: str,
+    metadata: JsonObject,
+) -> JsonObject:
+    display_fields = [{"label": key.replace("_", " ").title(), "value": item} for key, item in metadata.items() if item not in ("", None, [], {})]
+    if url:
+        display_fields.append({"label": "URL", "value": url})
+    component = "dataset" if group == "diseases" else "gene" if group == "targets" else "identifier_conversion"
+    return {
+        "kind": kind,
+        "group": group,
+        "parameter_name": parameter_name,
+        "value": value,
+        "label": label,
+        "title": label,
+        "description": description,
+        "url": url,
+        "metadata": metadata,
+        "display": {
+            "component": component,
+            "chip_label": parameter_name,
+            "icon": "opentargets",
+            "title": label,
+            "subtitle": f"{parameter_name}: {value}",
+            "description": description,
+            "metadata": display_fields,
+            "badges": [{"label": "Open Targets", "kind": "source"}, {"label": parameter_name, "kind": "parameter"}],
+            "actions": [{"label": "Open source", "url": url, "kind": "external", "primary": True}] if url else [],
+            "hover": {"title": label, "subtitle": f"{parameter_name}: {value}", "icon": "opentargets", "fields": display_fields},
+            "primary_url": url,
+        },
+    }
+
+
+def opentargets_record_recommended_calls(record: JsonObject) -> list[JsonObject]:
+    return opentargets_hit_recommended_calls({"id": record.get("id"), "entity": "disease" if record.get("record_type") == "opentargets_disease" else "target"})
+
+
+def opentargets_hit_recommended_calls(hit: JsonObject) -> list[JsonObject]:
+    entity = normalize_space(hit.get("entity"))
+    identifier = normalize_space(hit.get("id"))
+    if entity == "disease":
+        return [
+            {"tool_name": "opentargets_disease_lookup", "arguments": {"efo_id": identifier}, "reason": "Fetch associated targets and evidence scores for this Open Targets disease."},
+            {"server": "efo", "tool_name": "efo_term_lookup", "arguments": {"term_id": identifier}, "reason": "Open ontology context for this disease or phenotype identifier."},
+        ]
+    return [
+        {"tool_name": "opentargets_target_lookup", "arguments": {"ensembl_id": identifier}, "reason": "Fetch associated diseases and evidence scores for this Open Targets target."},
+        {"server": "ensembl", "tool_name": "ensembl_lookup", "arguments": {"ensembl_id": identifier}, "reason": "Open Ensembl gene metadata for this target."},
+    ]
+
+
+def opentargets_context_matches(context: JsonObject, *, context_type: str, query: str) -> bool:
+    if context_type != "all" and context.get("group") != context_type:
+        return False
+    if not query:
+        return True
+    metadata = context.get("metadata")
+    haystack_values = [context.get("parameter_name"), context.get("value"), context.get("label"), context.get("description"), context.get("kind")]
+    if isinstance(metadata, dict):
+        haystack_values.extend(metadata.values())
+    haystack = " ".join(str(item).lower() for item in haystack_values if item not in ("", None))
+    return query.lower() in haystack or context.get("group") in {"targets", "diseases"}
+
+
 def tool_definitions() -> list[JsonObject]:
     read_only_annotations = {
         "readOnlyHint": True,
         "openWorldHint": True,
     }
     return [
+        parameter_domains_tool_definition("opentargets_parameter_domains"),
+        {
+            "name": "opentargets_resolve_context",
+            "title": "Resolve Open Targets dynamic parameter context",
+            "description": (
+                "Resolve Open Targets target and disease IDs from search or explicit identifiers before lookup calls. "
+                "Returns front-end-friendly context rows, Open Targets URLs, and recommended follow-up calls."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "context_type": {"type": "string", "enum": OPENTARGETS_CONTEXT_TYPES, "default": "all"},
+                    "query": {"type": "string", "description": "Optional Open Targets search text such as TP53 or asthma."},
+                    "ensembl_id": {"type": "string", "description": "Optional Ensembl target ID such as ENSG00000141510."},
+                    "efo_id": {"type": "string", "description": "Optional disease ID such as MONDO_0004979."},
+                    "entity_names": {"type": "array", "items": {"type": "string", "enum": ["target", "disease"]}, "default": ["target", "disease"]},
+                    "max_results": {"type": "integer", "minimum": 1, "maximum": MAX_RESULTS, "default": 10},
+                    "include_raw": {"type": "boolean", "default": False},
+                },
+                "additionalProperties": False,
+            },
+            "annotations": read_only_annotations,
+        },
         {
             "name": "opentargets_target_lookup",
             "title": "Look up Open Targets target-disease associations",
@@ -450,6 +725,8 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS: dict[str, Callable[[JsonObject, OpenTargetsClient], JsonObject]] = {
+    "opentargets_parameter_domains": make_parameter_domains_handler("opentargets", "opentargets_parameter_domains", tool_definitions),
+    "opentargets_resolve_context": opentargets_resolve_context,
     "opentargets_target_lookup": opentargets_target_lookup,
     "opentargets_disease_lookup": opentargets_disease_lookup,
     "opentargets_search": opentargets_search,

@@ -134,6 +134,8 @@ class GnomadMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "gnomad_parameter_domains",
+                "gnomad_resolve_context",
                 "gnomad_variant_lookup",
                 "gnomad_gene_lookup",
                 "gnomad_status",
@@ -172,6 +174,18 @@ class GnomadMcpServerTests(unittest.TestCase):
         self.assertEqual(record["display"]["component"], "gene")
         self.assertEqual(record["identifiers"]["ensembl_gene"]["id"], "ENSG00000141510")
         self.assertEqual(record["data"]["constraint"]["pLI"], 1.0)
+
+    def test_resolve_context_returns_gene_candidate_and_calls(self) -> None:
+        result = self.call_tool(
+            "gnomad_resolve_context",
+            {"gene_id": "ENSG00000141510", "max_results": 4},
+        )
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(result["entities"][0]["value"], "ENSG00000141510")
+        self.assertIn("/gene/ENSG00000141510", result["entities"][0]["url"])
+        tool_names = {call["tool_name"] for call in result["recommended_calls"]}
+        self.assertIn("gnomad_gene_lookup", tool_names)
+        self.assertIn("ensembl_lookup", tool_names)
 
     def test_status_reports_inventory_without_network_by_default(self) -> None:
         result = self.call_tool("gnomad_status", {})
