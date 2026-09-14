@@ -340,6 +340,11 @@ geometry:
   group is supplied. The vertical tick is a display quantile of the
   supplied values. Genome-coordinate coverage tracks are
   `ideogram-coverage`, not line-ridge.
+  Normal vs Tumor (or any two-level contrast) across many cancer
+  types with alternating background bands and per-category stars →
+  `boxplot-differential-bg`. That is not boxplot-group and not
+  boxplot-differential-expression. show_ns stays in CONFIG. Do not
+  filter matched patients or run DE in the script.
 
 ## Multi-panel composition
 

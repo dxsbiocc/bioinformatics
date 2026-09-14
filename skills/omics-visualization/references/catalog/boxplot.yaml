@@ -171,17 +171,28 @@ templates:
     status: "stable"
 
   - id: "boxplot-differential-bg"
-    title: "Boxplot with background bands"
+    title: "Banded two-level differential boxplot"
     aliases:
       - "背景色带箱线图"
+      - "泛癌箱线图"
+      - "分组差异箱线"
+      - "pancancer boxplot"
     source: "scripts/boxplot/differential_bg/plot.R"
     examples:
       - "scripts/boxplot/differential_bg/example.tsv"
     preview: "scripts/boxplot/differential_bg/preview.png"
     use_when: >
-      Highlight group regions behind boxes with background bands.
+      Compare two groups within many x-axis categories (for example
+      Normal vs Tumor across cancer types): rounded boxes, jitter,
+      alternating background bands, and per-category significance
+      labels. show_ns is CONFIG.
     avoid_when: >
-      Do not use when no band encoding is requested.
+      Do not use a plain two-factor boxplot without bands or
+      significance (boxplot-group), a single-category DE panel
+      (boxplot-differential-expression), or faceted many-feature
+      panels (boxplot-differential-facet). Do not filter matched
+      patients or run DE in the script. Alternating vs solid bands
+      is not a second id.
     input_shape: "one row per observation; category, group, and numeric value"
     language: "r"
     status: "stable"

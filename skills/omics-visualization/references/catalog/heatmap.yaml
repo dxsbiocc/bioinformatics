@@ -179,8 +179,9 @@ templates:
     use_when: >
       Show a supplied pairwise correlation table ordered into named
       variable groups, with gaps between blocks, stars from supplied
-      p cuts, and right-hand group braces. Lower / upper / full is
-      CONFIG.
+      p cuts, braces along the diagonal hypotenuse, and a slanted
+      correlation colorbar in the empty upper-right wedge. Lower /
+      upper / full is CONFIG.
     avoid_when: >
       Do not use an ungrouped square significance matrix
       (heatmap-signif), a two-set X-vs-Y matrix from sample rows

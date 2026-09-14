@@ -907,7 +907,7 @@
       "source": "scripts/boxplot/group/plot.R",
       "preview": "scripts/boxplot/group/preview.png",
       "preferred_shapes": [
-        "grouped_category_value",
+        "grouped_distribution",
         "category_distribution"
       ],
       "roles": {
@@ -922,7 +922,12 @@
       "intent_keywords": [
         "grouped boxplot",
         "boxplot-group",
+        "boxplot",
+        "box plot",
+        "grouped distribution",
+        "split boxplot",
         "two grouping factors",
+        "箱线图",
         "分组箱线图"
       ],
       "use_when": "Compare numeric distributions across categories and a second grouping factor.",
@@ -2539,7 +2544,7 @@
     {
       "id": "boxplot-differential-bg",
       "family": "boxplot",
-      "title": "Boxplot with background bands",
+      "title": "Banded two-level differential boxplot",
       "source": "scripts/boxplot/differential_bg/plot.R",
       "preview": "scripts/boxplot/differential_bg/preview.png",
       "preferred_shapes": [
@@ -2559,10 +2564,12 @@
         "background bands boxplot",
         "boxplot-differential-bg",
         "banded boxplot",
-        "背景色带箱线图"
+        "背景色带箱线图",
+        "pancancer boxplot",
+        "泛癌箱线图"
       ],
-      "use_when": "Highlight supplied group regions behind boxplots with background bands.",
-      "avoid_when": "Do not use when no band or region encoding is requested."
+      "use_when": "Compare two groups within many x-axis categories with alternating background bands and per-category significance labels.",
+      "avoid_when": "Do not use a plain two-factor boxplot without bands, a single-category DE panel, or faceted many-feature panels."
     },
     {
       "id": "boxplot-raincloud-vertical",

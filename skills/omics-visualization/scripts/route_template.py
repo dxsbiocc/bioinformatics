@@ -699,6 +699,23 @@ def unique_count(rows: list[dict[str, str]], column: str) -> int:
     return len(set(column_values(rows, column)))
 
 
+def is_bounded_category_column(rows: list[dict[str, str]], column: str) -> bool:
+    count = unique_count(rows, column)
+    return 1 < count <= max(20, len(rows) // 2)
+
+
+def is_classification_column_name(column: str) -> bool:
+    norm = normalize(column)
+    tokens = set(norm.split("_"))
+    return bool(tokens & {"class", "condition", "cohort", "group", "status", "type"})
+
+
+def is_explicit_component_column(column: str) -> bool:
+    norm = normalize(column)
+    tokens = set(norm.split("_"))
+    return bool(tokens & {"component", "segment", "part", "ring", "subtype", "state"})
+
+
 def score_column_name(column: str, role: str) -> int:
     norm = normalize(column)
     if not norm:
@@ -725,6 +742,8 @@ def score_column_name(column: str, role: str) -> int:
         score = max(score, 9)
     if role == "parent_entity" and norm.startswith(("parent_", "ancestor_", "root_", "path_", "level_")):
         score = max(score, 9)
+    if role == "pair_id" and is_classification_column_name(column) and not norm.endswith(("_id", "id")):
+        score = min(score, 2)
     return score
 
 
@@ -850,12 +869,21 @@ def infer_role_mapping(headers: list[str], rows: list[dict[str, str]]) -> dict[s
 
     if "category" not in mapping:
         text_columns = [header for header in headers if not summaries[header]["is_numeric"]]
-        bounded = [column for column in text_columns if 1 < unique_count(rows, column) <= max(20, len(rows) // 2)]
+        bounded = [column for column in text_columns if is_bounded_category_column(rows, column)]
         if bounded:
             mapping["category"] = min(bounded, key=lambda column: unique_count(rows, column))
 
     text_columns = [header for header in headers if not summaries[header]["is_numeric"]]
-    bounded_text = [column for column in text_columns if 1 < unique_count(rows, column) <= max(20, len(rows) // 2)]
+    bounded_text = [column for column in text_columns if is_bounded_category_column(rows, column)]
+    if len(numeric_columns) == 1 and len(bounded_text) >= 2:
+        cardinalities = {column: unique_count(rows, column) for column in bounded_text}
+        high_cardinality = max(bounded_text, key=lambda column: cardinalities[column])
+        low_cardinality = min(bounded_text, key=lambda column: cardinalities[column])
+        if cardinalities[high_cardinality] > cardinalities[low_cardinality] and cardinalities[low_cardinality] <= 12:
+            if mapping.get("pair_id") not in {high_cardinality, low_cardinality}:
+                mapping["category"] = high_cardinality
+                mapping["secondary_category"] = low_cardinality
+
     used_entity_columns = {
         mapping.get("category"),
         mapping.get("target_entity"),
@@ -881,6 +909,13 @@ def infer_role_mapping(headers: list[str], rows: list[dict[str, str]]) -> dict[s
             mapping["component"] = min(candidates, key=lambda column: unique_count(rows, column))
         elif mapping.get("component") == mapping.get("category"):
             mapping.pop("component", None)
+
+    if (
+        "pair_id" in mapping
+        and mapping["pair_id"] in {mapping.get("category"), mapping.get("secondary_category"), mapping.get("component")}
+        and is_classification_column_name(mapping["pair_id"])
+    ):
+        mapping.pop("pair_id", None)
 
     if "signed_association" in mapping and "target_entity" in mapping and "category" in mapping:
         if "x_category" not in mapping:
@@ -1397,22 +1432,26 @@ def detect_shapes(headers: list[str], rows: list[dict[str, str]], mapping: dict[
     if "category" in mapping and has_numeric_measure:
         shapes.add("category_distribution")
         shapes.add("category_magnitude")
-        if len(text_columns) <= 2 and len(numeric_columns) == 1:
+        has_second_category = (
+            "secondary_category" in mapping
+            and mapping["secondary_category"] != mapping.get("category")
+        )
+        has_explicit_component = (
+            "component" in mapping
+            and mapping["component"] != mapping.get("category")
+            and is_explicit_component_column(mapping["component"])
+        )
+        if len(text_columns) == 1 and len(numeric_columns) == 1:
             shapes.add("part_to_whole")
-        composition_like = "component" in mapping or len(text_columns) <= 2
-        if (
-            composition_like
-            and (
-                ("secondary_category" in mapping and mapping["secondary_category"] != mapping.get("category"))
-                or ("component" in mapping and mapping["component"] != mapping.get("category"))
-            )
-        ):
+        if has_second_category or has_explicit_component:
             shapes.add("grouped_category_value")
-            shapes.add("stacked_composition")
-            shapes.add("nested_composition")
             shapes.add("grouped_distribution")
             if "count" in mapping or "magnitude" in mapping or "numeric_y" in mapping:
                 shapes.add("single_axis_series")
+        if has_explicit_component:
+            shapes.add("stacked_composition")
+            shapes.add("nested_composition")
+            shapes.add("part_to_whole")
         if "uncertainty" in mapping:
             shapes.add("category_uncertainty")
         if "pair_id" in mapping:

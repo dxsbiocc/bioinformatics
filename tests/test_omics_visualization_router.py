@@ -194,6 +194,29 @@ class OmicsVisualizationRouterTests(unittest.TestCase):
         self.assertIn("grouped_category_value", payload["input_profile"]["shapes"])
         self.assertEqual(payload["input_profile"]["role_mapping"]["secondary_category"], "group")
 
+    def test_grouped_distribution_routes_to_grouped_boxplot(self) -> None:
+        payload = self.run_router(
+            "\n".join(
+                [
+                    "condition\tclass\tmeasurement",
+                    "A\tcontrol\t1.0",
+                    "A\tcase\t2.0",
+                    "A\tcase\t2.4",
+                    "B\tcontrol\t3.0",
+                    "B\tcontrol\t3.3",
+                    "B\tcase\t4.0",
+                ]
+            ),
+            "grouped boxplot comparing measurement distributions by condition and class",
+        )
+        top = payload["recommendations"][0]
+        self.assertEqual(top["id"], "boxplot-group")
+        self.assertEqual(top["confidence"], "high")
+        self.assertIn("grouped_distribution", payload["input_profile"]["shapes"])
+        self.assertEqual(payload["input_profile"]["role_mapping"]["category"], "condition")
+        self.assertEqual(payload["input_profile"]["role_mapping"]["secondary_category"], "class")
+        self.assertNotIn("paired_distribution", payload["input_profile"]["shapes"])
+
     def test_uncertainty_column_routes_to_errorbar_chart(self) -> None:
         payload = self.run_router(
             "\n".join(
