@@ -8,7 +8,7 @@ import urllib.parse
 from collections.abc import Callable
 from dataclasses import dataclass
 
-import httpx
+from mcp.http_client import Opener, PacedHttpClient
 
 from .constants import DEFAULT_TOOL_NAME, KEGG_REST_BASE_URL, KEGG_WEBSITE_BASE_URL
 from .errors import KeggError
@@ -46,30 +46,25 @@ class KeggClient:
         self,
         config: KeggConfig | None = None,
         *,
-        opener: Callable[[httpx.Request, float], object] | None = None,
+        opener: Opener | None = None,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self.config = config or KeggConfig.from_env()
-        self._opener = opener
-        self._sleep = sleep
-        self._monotonic = monotonic
-        self._last_request_at = 0.0
-        self._http: httpx.Client | None = None
-
-    @property
-    def _client(self) -> httpx.Client:
-        if self._http is None:
-            self._http = httpx.Client(
-                http2=True,
-                timeout=httpx.Timeout(self.config.timeout_seconds),
-            )
-        return self._http
+        self._http = PacedHttpClient(
+            error_class=KeggError,
+            service_name="KEGG",
+            timeout_seconds=self.config.timeout_seconds,
+            max_retries=self.config.max_retries,
+            retry_base_seconds=self.config.retry_base_seconds,
+            requests_per_second=max(float(self.config.requests_per_second or 1), 0.1),
+            opener=opener,
+            sleep=sleep,
+            monotonic=monotonic,
+        )
 
     def close(self) -> None:
-        if self._http is not None:
-            self._http.close()
-            self._http = None
+        self._http.close()
 
     @property
     def requests_per_second(self) -> float:
@@ -94,52 +89,11 @@ class KeggClient:
         return f"{self.config.website_base_url.rstrip('/')}/entry/{urllib.parse.quote(entry_id, safe=':._-')}"
 
     def _open_url(self, url: str, label: str) -> tuple[str, dict[str, str]]:
-        self._throttle()
         headers = {
             "Accept": "text/plain,application/json,*/*",
             "User-Agent": self._user_agent(),
         }
-        request = httpx.Request("GET", url, headers=headers)
-        try:
-            if self._opener is not None:
-                opened = self._opener(request, self.config.timeout_seconds)
-                if isinstance(opened, tuple) and len(opened) == 2:
-                    return str(opened[0]), dict(opened[1])
-                return str(opened), {}
-            for attempt in range(self.config.max_retries + 1):
-                try:
-                    response = self._client.send(request)
-                    response.raise_for_status()
-                    response_headers = {
-                        key.lower(): value
-                        for key, value in response.headers.items()
-                    }
-                    text = response.read().decode("utf-8", errors="replace")
-                    return text, response_headers
-                except httpx.RequestError:
-                    if attempt >= self.config.max_retries:
-                        raise
-                    self._sleep(self.config.retry_base_seconds * (attempt + 1))
-            raise KeggError(f"Could not reach KEGG {label}", endpoint=label)
-        except httpx.HTTPStatusError as exc:
-            detail = exc.response.text
-            raise KeggError(
-                f"KEGG {label} returned HTTP {exc.response.status_code}: {detail[:500]}",
-                status_code=exc.response.status_code,
-                endpoint=label,
-                response_body=detail[:1000],
-            ) from exc
-        except httpx.RequestError as exc:
-            raise KeggError(f"Could not reach KEGG {label}: {exc}", endpoint=label) from exc
-
-    def _throttle(self) -> None:
-        requests_per_second = max(float(self.requests_per_second or 1), 0.1)
-        minimum_interval = 1.0 / requests_per_second
-        now = self._monotonic()
-        elapsed = now - self._last_request_at
-        if elapsed < minimum_interval:
-            self._sleep(minimum_interval - elapsed)
-        self._last_request_at = self._monotonic()
+        return self._http.send("GET", url, headers, label=label)
 
     def _user_agent(self) -> str:
         if self.config.contact:
@@ -156,4 +110,3 @@ def parse_float_env(name: str, default: float) -> float:
     except ValueError:
         return default
     return min(max(parsed, 0.1), 3.0)
-

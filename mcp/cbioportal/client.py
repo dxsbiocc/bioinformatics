@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-import httpx
+from mcp.http_client import Opener, PacedHttpClient
 
 from .constants import CBIOPORTAL_API_BASE_URL, CBIOPORTAL_WEBSITE_BASE_URL, DEFAULT_TOOL_NAME, JsonObject
 from .errors import CbioPortalError
@@ -45,30 +45,25 @@ class CbioPortalClient:
         self,
         config: CbioPortalConfig | None = None,
         *,
-        opener: Callable[[httpx.Request, float], str] | None = None,
+        opener: Opener | None = None,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self.config = config or CbioPortalConfig.from_env()
-        self._opener = opener
-        self._sleep = sleep
-        self._monotonic = monotonic
-        self._last_request_at = 0.0
-        self._http: httpx.Client | None = None
-
-    @property
-    def _client(self) -> httpx.Client:
-        if self._http is None:
-            self._http = httpx.Client(
-                http2=True,
-                timeout=httpx.Timeout(self.config.timeout_seconds),
-            )
-        return self._http
+        self._http = PacedHttpClient(
+            error_class=CbioPortalError,
+            service_name="cBioPortal",
+            timeout_seconds=self.config.timeout_seconds,
+            max_retries=self.config.max_retries,
+            retry_base_seconds=self.config.retry_base_seconds,
+            requests_per_second=self.requests_per_second,
+            opener=opener,
+            sleep=sleep,
+            monotonic=monotonic,
+        )
 
     def close(self) -> None:
-        if self._http is not None:
-            self._http.close()
-            self._http = None
+        self._http.close()
 
     @property
     def requests_per_second(self) -> int:
@@ -103,7 +98,6 @@ class CbioPortalClient:
         method: str,
         json_body: JsonObject | list[Any] | None,
     ) -> tuple[Any, dict[str, str]]:
-        self._throttle()
         text, response_headers = self._open_url(url, label, method=method, json_body=json_body)
         try:
             payload = json.loads(text)
@@ -123,38 +117,7 @@ class CbioPortalClient:
         headers = {"Accept": "application/json", "User-Agent": self._user_agent()}
         if data is not None:
             headers["Content-Type"] = "application/json"
-        request = httpx.Request(method.upper(), url, headers=headers, content=data)
-        try:
-            if self._opener is not None:
-                return self._opener(request, self.config.timeout_seconds), {}
-            for attempt in range(self.config.max_retries + 1):
-                try:
-                    response = self._client.send(request)
-                    response.raise_for_status()
-                    response_headers = {key.lower(): value for key, value in response.headers.items()}
-                    return response.read().decode("utf-8", errors="replace"), response_headers
-                except httpx.RequestError:
-                    if attempt >= self.config.max_retries:
-                        raise
-                    self._sleep(self.config.retry_base_seconds * (attempt + 1))
-            raise CbioPortalError(f"Could not reach cBioPortal {label}")
-        except httpx.HTTPStatusError as exc:
-            detail = exc.response.text
-            raise CbioPortalError(
-                f"cBioPortal {label} returned HTTP {exc.response.status_code}: {detail[:500]}",
-                status_code=exc.response.status_code,
-                endpoint=label,
-                response_body=detail,
-            ) from exc
-        except httpx.RequestError as exc:
-            raise CbioPortalError(f"Could not reach cBioPortal {label}: {exc}") from exc
-
-    def _throttle(self) -> None:
-        minimum_interval = 1.0 / self.requests_per_second
-        elapsed = self._monotonic() - self._last_request_at
-        if elapsed < minimum_interval:
-            self._sleep(minimum_interval - elapsed)
-        self._last_request_at = self._monotonic()
+        return self._http.send(method.upper(), url, headers, content=data, label=label)
 
     def _user_agent(self) -> str:
         if self.config.contact:
