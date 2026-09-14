@@ -8,7 +8,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-import httpx
+from mcp.http_client import Opener, PacedHttpClient
 
 from .constants import (
     DEFAULT_TOOL_NAME,
@@ -52,30 +52,25 @@ class OpenTargetsClient:
         self,
         config: OpenTargetsConfig | None = None,
         *,
-        opener: Callable[[httpx.Request, float], str] | None = None,
+        opener: Opener | None = None,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self.config = config or OpenTargetsConfig.from_env()
-        self._opener = opener
-        self._sleep = sleep
-        self._monotonic = monotonic
-        self._last_request_at = 0.0
-        self._http: httpx.Client | None = None
-
-    @property
-    def _client(self) -> httpx.Client:
-        if self._http is None:
-            self._http = httpx.Client(
-                http2=True,
-                timeout=httpx.Timeout(self.config.timeout_seconds),
-            )
-        return self._http
+        self._http = PacedHttpClient(
+            error_class=OpenTargetsError,
+            service_name="Open Targets",
+            timeout_seconds=self.config.timeout_seconds,
+            max_retries=self.config.max_retries,
+            retry_base_seconds=self.config.retry_base_seconds,
+            requests_per_second=self.requests_per_second,
+            opener=opener,
+            sleep=sleep,
+            monotonic=monotonic,
+        )
 
     def close(self) -> None:
-        if self._http is not None:
-            self._http.close()
-            self._http = None
+        self._http.close()
 
     @property
     def requests_per_second(self) -> int:
@@ -90,19 +85,14 @@ class OpenTargetsClient:
             {"query": query, "variables": variables or {}},
             separators=(",", ":"),
         ).encode("utf-8")
-        self._throttle()
         headers = {
             "Accept": "application/json",
             "Content-Type": "application/json",
             "User-Agent": self._user_agent(),
         }
-        request = httpx.Request(
-            "POST",
-            self.config.graphql_url,
-            headers=headers,
-            content=payload,
+        text, response_headers = self._http.send(
+            "POST", self.config.graphql_url, headers, content=payload, label="graphql"
         )
-        text, response_headers = self._open_request(request, "graphql")
         try:
             parsed = json.loads(text)
         except json.JSONDecodeError as exc:
@@ -110,45 +100,6 @@ class OpenTargetsClient:
         if not isinstance(parsed, dict):
             raise OpenTargetsError("Open Targets GraphQL returned non-object JSON")
         return parsed, response_headers
-
-    def _open_request(
-        self,
-        request: httpx.Request,
-        label: str,
-    ) -> tuple[str, dict[str, str]]:
-        try:
-            if self._opener is not None:
-                return self._opener(request, self.config.timeout_seconds), {}
-            for attempt in range(self.config.max_retries + 1):
-                try:
-                    response = self._client.send(request)
-                    response.raise_for_status()
-                    response_headers = {
-                        key.lower(): value
-                        for key, value in response.headers.items()
-                    }
-                    text = response.read().decode("utf-8", errors="replace")
-                    return text, response_headers
-                except httpx.RequestError:
-                    if attempt >= self.config.max_retries:
-                        raise
-                    self._sleep(self.config.retry_base_seconds * (attempt + 1))
-            raise OpenTargetsError(f"Could not reach Open Targets {label}")
-        except httpx.HTTPStatusError as exc:
-            detail = exc.response.text
-            raise OpenTargetsError(
-                f"Open Targets {label} returned HTTP {exc.response.status_code}: {detail[:500]}"
-            ) from exc
-        except httpx.RequestError as exc:
-            raise OpenTargetsError(f"Could not reach Open Targets {label}: {exc}") from exc
-
-    def _throttle(self) -> None:
-        minimum_interval = 1.0 / self.requests_per_second
-        now = self._monotonic()
-        elapsed = now - self._last_request_at
-        if elapsed < minimum_interval:
-            self._sleep(minimum_interval - elapsed)
-        self._last_request_at = self._monotonic()
 
     def _user_agent(self) -> str:
         if self.config.contact:
