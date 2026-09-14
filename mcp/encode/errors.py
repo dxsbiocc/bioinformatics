@@ -2,19 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Any
+from mcp.http_client import UpstreamError
+from mcp.rpc import McpError
+
+__all__ = ["McpError", "EncodeError"]
 
 
-class EncodeError(Exception):
+class EncodeError(UpstreamError):
     """Raised when ENCODE retrieval or normalization fails."""
-
-
-class McpError(Exception):
-    """JSON-RPC error surfaced at the MCP boundary."""
-
-    def __init__(self, code: int, message: str, data: Any | None = None) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.data = data
-
