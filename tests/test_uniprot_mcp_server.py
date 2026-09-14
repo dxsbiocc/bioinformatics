@@ -185,6 +185,8 @@ class UniProtMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "uniprot_parameter_domains",
+                "uniprot_resolve_context",
                 "uniprot_search",
                 "uniprot_lookup",
                 "uniprot_fasta",
@@ -275,6 +277,22 @@ class UniProtMcpServerTests(unittest.TestCase):
             structure_previews[0]["data"]["api_url"],
             "https://alphafold.ebi.ac.uk/api/prediction/P04637",
         )
+
+    def test_resolve_context_returns_accession_and_downstream_calls(self) -> None:
+        result = self.call_tool("uniprot_resolve_context", {"accession": "P04637", "max_results": 20})
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(result["accessions"][0]["value"], "P04637")
+        tool_names = {call["tool_name"] for call in result["recommended_calls"]}
+        self.assertIn("uniprot_lookup", tool_names)
+        self.assertIn("uniprot_fasta", tool_names)
+        self.assertIn("alphafold_lookup", tool_names)
+        self.assertIn("string_interactions", tool_names)
+
+    def test_resolve_context_searches_uniprot_query(self) -> None:
+        result = self.call_tool("uniprot_resolve_context", {"query": "gene:TP53", "organism": "9606", "reviewed": True})
+        self.assertEqual(result["returned"], 1)
+        self.assertEqual(result["accessions"][0]["value"], "P04637")
+        self.assertIn("(gene:TP53) AND (organism_id:9606) AND (reviewed:true)", self.client.calls[-1][1]["query"])
 
     def test_fasta_returns_sequence_record_and_raw_fasta(self) -> None:
         result = self.call_tool("uniprot_fasta", {"accession": "P04637"})

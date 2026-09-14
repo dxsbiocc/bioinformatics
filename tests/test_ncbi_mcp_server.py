@@ -548,6 +548,8 @@ class NcbiMcpServerTests(unittest.TestCase):
         self.assertIsNotNone(response)
         tools = response["result"]["tools"]
         tool_names = {tool["name"] for tool in tools}
+        self.assertIn("ncbi_parameter_domains", tool_names)
+        self.assertIn("ncbi_resolve_context", tool_names)
         self.assertIn("pubmed_search", tool_names)
         self.assertIn("geo_series", tool_names)
         self.assertIn("gene_lookup", tool_names)
@@ -564,6 +566,27 @@ class NcbiMcpServerTests(unittest.TestCase):
         self.assertIn("sra_download_plan", tool_names)
         self.assertIn("omics_sample_sheet", tool_names)
         self.assertIn("tool_runtime_status", tool_names)
+
+    def test_resolve_context_reports_static_database_hints_without_network(self) -> None:
+        client = FakeClient()
+        result = ncbi.ncbi_resolve_context({"context_type": "databases", "max_results": 20}, client)
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(client.calls, [])
+        values = {context["value"] for context in result["contexts"]}
+        self.assertIn("pubmed", values)
+        self.assertIn("gds", values)
+        self.assertIn("sra", values)
+
+    def test_resolve_context_searches_pubmed_and_recommends_followups(self) -> None:
+        result = ncbi.ncbi_resolve_context(
+            {"context_type": "literature", "database": "pubmed", "query": "cancer", "max_results": 5},
+            FakeClient(),
+        )
+        self.assertEqual(result["source"]["endpoint"], "esearch.fcgi")
+        self.assertEqual([item["value"] for item in result["identifiers"][:2]], ["123", "456"])
+        tool_names = {call["tool_name"] for call in result["recommended_calls"]}
+        self.assertIn("pubmed_summaries", tool_names)
+        self.assertIn("pubmed_articles", tool_names)
 
     def test_ncbi_client_adds_tool_email_and_api_key(self) -> None:
         captured_urls = []

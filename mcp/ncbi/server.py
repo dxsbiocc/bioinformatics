@@ -209,7 +209,7 @@ from mcp.ncbi.taxonomy import (
     taxonomy_lookup,
     taxonomy_summaries_for_ids,
 )
-from mcp.ncbi.tools import TOOL_HANDLERS, ncbi_status, tool_definitions
+from mcp.ncbi.tools import TOOL_HANDLERS, ncbi_resolve_context, ncbi_status, tool_definitions
 from mcp.ncbi.utils import (
     element_text,
     normalize_space,
@@ -441,6 +441,7 @@ __all__ = [
     "ncbi_link",
     "ncbi_related_records",
     "ncbi_record_url",
+    "ncbi_resolve_context",
     "ncbi_status",
     "normalize_bioproject_summary",
     "normalize_biosample_summary",

@@ -209,7 +209,7 @@ class RcsbMcpServerTests(unittest.TestCase):
         )
         assert response is not None
         names = {tool["name"] for tool in response["result"]["tools"]}
-        self.assertEqual(names, {"rcsb_lookup", "rcsb_search", "rcsb_fasta", "rcsb_status"})
+        self.assertEqual(names, {"rcsb_parameter_domains", "rcsb_resolve_context", "rcsb_lookup", "rcsb_search", "rcsb_fasta", "rcsb_status"})
 
     def test_lookup_returns_frontend_compatible_structure_record(self) -> None:
         result = self.call_tool("rcsb_lookup", {"pdb_id": "4hhb"})
@@ -253,6 +253,15 @@ class RcsbMcpServerTests(unittest.TestCase):
         self.assertIn("paginate", search_call[2]["request_options"])
         self.assertNotIn("pager", search_call[2]["request_options"])
         self.assertEqual(result["records"][0]["data"]["search_score"], 1.0)
+
+    def test_resolve_context_returns_search_hits_and_recommended_calls(self) -> None:
+        result = self.call_tool("rcsb_resolve_context", {"context_type": "entry", "query": "hemoglobin", "max_results": 2})
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual([entry["value"] for entry in result["entries"]], ["4HHB", "2PGH"])
+        tool_names = {call["tool_name"] for call in result["recommended_calls"]}
+        self.assertIn("rcsb_lookup", tool_names)
+        self.assertIn("rcsb_fasta", tool_names)
+        self.assertTrue(result["entries"][0]["url"].endswith("/structure/4HHB"))
 
     def test_fasta_returns_sequence_record(self) -> None:
         result = self.call_tool("rcsb_fasta", {"pdb_id": "4HHB"})

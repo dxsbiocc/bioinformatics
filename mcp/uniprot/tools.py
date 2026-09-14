@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from mcp.dynamic_context import build_dynamic_context_response
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 import urllib.parse
 from typing import Callable
 
@@ -13,6 +15,7 @@ from .constants import (
     UNIPROT_WEBSITE_BASE_URL,
     JsonObject,
 )
+from .errors import McpError
 from .records import fasta_record, normalize_uniprot_entry, uniprotkb_record
 from .utils import (
     normalize_space,
@@ -23,6 +26,11 @@ from .utils import (
     require_non_empty_string,
     source_info,
 )
+
+
+UNIPROT_CONTEXT_TYPES = ["all", "search", "accession", "organisms", "features", "xrefs"]
+UNIPROT_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"
+UNIPROT_FEATURE_TYPES = ["Chain", "Domain", "Region", "DNA binding", "Modified residue", "Active site", "Binding site", "Transmembrane"]
 
 
 def uniprot_status(args: JsonObject, client: UniProtClient) -> JsonObject:
@@ -40,6 +48,7 @@ def uniprot_status(args: JsonObject, client: UniProtClient) -> JsonObject:
         "available_tools": available_tools,
         "available_databases": ["uniprotkb"],
         "tool_groups": {
+            "context": ["uniprot_parameter_domains", "uniprot_resolve_context"],
             "protein": [
                 "uniprot_search",
                 "uniprot_lookup",
@@ -86,6 +95,67 @@ def uniprot_status(args: JsonObject, client: UniProtClient) -> JsonObject:
             "returned": len(results),
         }
     return status
+
+
+def uniprot_resolve_context(args: JsonObject, client: UniProtClient) -> JsonObject:
+    context_type = optional_context_type(args, "context_type", allowed=UNIPROT_CONTEXT_TYPES, default="all")
+    query = optional_string(args, "query")
+    accession = optional_string(args, "accession")
+    organism = optional_string(args, "organism")
+    max_results = optional_int(args, "max_results", default=10, minimum=1, maximum=MAX_RESULTS)
+    include_raw = optional_bool(args, "include_raw", default=False)
+    contexts = static_uniprot_contexts()
+    recommended_calls: list[JsonObject] = []
+    sources: list[JsonObject] = []
+    raw: JsonObject = {}
+
+    if accession:
+        accession = require_accession({"accession": accession})
+        endpoint = f"uniprotkb/{urllib.parse.quote(accession, safe='')}"
+        params: JsonObject = {"format": "json"}
+        entry, headers = client.request_json_with_headers(endpoint, params)
+        raw["entry"] = entry
+        sources.append(source_with_release(endpoint, params, headers))
+        contexts.append(uniprot_entry_context(entry))
+        recommended_calls.extend(uniprot_recommended_calls(entry))
+
+    if query:
+        search_args: JsonObject = {"query": query}
+        if organism:
+            search_args["organism"] = organism
+        if "reviewed" in args:
+            search_args["reviewed"] = optional_bool(args, "reviewed", default=False)
+        search_query = build_search_query(search_args, query)
+        params = {"query": search_query, "format": "json", "size": max_results}
+        payload, headers = client.request_json_with_headers("uniprotkb/search", params)
+        raw["search"] = payload
+        sources.append(source_with_release("uniprotkb/search", params, headers))
+        entries = [entry for entry in payload.get("results", []) if isinstance(entry, dict)]
+        contexts.extend(uniprot_entry_context(entry) for entry in entries[:max_results])
+        for entry in entries[: min(max_results, 3)]:
+            recommended_calls.extend(uniprot_recommended_calls(entry))
+
+    filtered_contexts = [context for context in contexts if uniprot_context_matches(context, context_type=context_type, query=query or accession, organism=organism)]
+    return build_dynamic_context_response(
+        schema_version=RESULT_SCHEMA_VERSION,
+        context_schema_version=UNIPROT_CONTEXT_SCHEMA_VERSION,
+        database="uniprotkb",
+        query={
+            "context_type": context_type,
+            "query": query,
+            "accession": accession,
+            "organism": organism,
+        },
+        contexts=filtered_contexts,
+        recommended_calls=recommended_calls,
+        max_results=max_results,
+        fallback_source=source_info("resolve_context", {"context_type": context_type, "query": query, "accession": accession}),
+        sources=sources,
+        entity_groups={"accession"},
+        raw=raw,
+        summary_fields={"accessions": lambda context: context.get("parameter_name") == "accession"},
+        include_raw=include_raw,
+    )
 
 
 def uniprot_search(args: JsonObject, client: UniProtClient) -> JsonObject:
@@ -323,12 +393,239 @@ def source_with_release(
     return source
 
 
+def optional_string(args: JsonObject, name: str, *, default: str = "") -> str:
+    value = args.get(name, default)
+    if value is None:
+        return default
+    if not isinstance(value, str):
+        raise McpError(-32602, f"{name} must be a string")
+    return value.strip() or default
+
+
+def optional_context_type(args: JsonObject, name: str, *, allowed: list[str], default: str) -> str:
+    value = optional_string(args, name, default=default)
+    if value not in allowed:
+        raise McpError(-32602, f"{name} must be one of: {', '.join(allowed)}")
+    return value
+
+
+def static_uniprot_contexts() -> list[JsonObject]:
+    contexts: list[JsonObject] = [
+        uniprot_parameter_context(
+            "context_type",
+            value,
+            label=value,
+            description="Dynamic UniProt context family to resolve before choosing a protein lookup, sequence, or downstream database call.",
+            kind="enum",
+            group="search",
+            url="",
+            metadata={"context_type": value},
+        )
+        for value in UNIPROT_CONTEXT_TYPES
+    ]
+    contexts.extend(
+        [
+            uniprot_parameter_context(
+                "organism",
+                "9606",
+                label="Homo sapiens",
+                description="Human NCBI TaxID commonly used with UniProt search.",
+                kind="organism",
+                group="organisms",
+                url="https://www.uniprot.org/taxonomy/9606",
+                metadata={"taxon_id": 9606, "scientific_name": "Homo sapiens"},
+            ),
+            uniprot_parameter_context(
+                "reviewed",
+                True,
+                label="Reviewed Swiss-Prot",
+                description="Restrict UniProt search to reviewed Swiss-Prot entries.",
+                kind="boolean_filter",
+                group="search",
+                url="",
+                metadata={"tool_hint": "uniprot_search"},
+            ),
+        ]
+    )
+    contexts.extend(
+        uniprot_parameter_context(
+            "feature_types",
+            feature_type,
+            label=feature_type,
+            description="Sequence feature type accepted by uniprot_lookup and uniprot_search feature filtering.",
+            kind="feature_type",
+            group="features",
+            url="",
+            metadata={"tool_hint": "uniprot_lookup"},
+        )
+        for feature_type in UNIPROT_FEATURE_TYPES
+    )
+    contexts.extend(
+        uniprot_parameter_context(
+            "xref_database",
+            value,
+            label=value,
+            description="Common UniProt cross-reference that can seed another MCP or front-end preview.",
+            kind="xref_hint",
+            group="xrefs",
+            url="",
+            metadata={"downstream": downstream},
+        )
+        for value, downstream in [
+            ("AlphaFoldDB", "alphafold_lookup"),
+            ("PDB", "rcsb_lookup"),
+            ("STRING", "string_interactions"),
+            ("Reactome", "reactome_lookup"),
+            ("PubMed", "pubmed_articles"),
+        ]
+    )
+    return contexts
+
+
+def uniprot_entry_context(entry: JsonObject) -> JsonObject:
+    normalized = normalize_uniprot_entry(entry, include_raw=False, include_features=False, max_features=0, feature_types=[], max_comments=1)
+    accession = str(normalized.get("accession") or entry.get("primaryAccession") or "")
+    genes = normalized.get("genes") if isinstance(normalized.get("genes"), list) else []
+    gene = genes[0] if genes else ""
+    title = str(normalized.get("protein_name") or accession)
+    return uniprot_parameter_context(
+        "accession",
+        accession,
+        label=title,
+        description=f"UniProtKB accession for {gene or title}.",
+        kind="accession",
+        group="accession",
+        url=f"{UNIPROT_WEBSITE_BASE_URL.rstrip('/')}/uniprotkb/{urllib.parse.quote(accession)}/entry",
+        metadata={
+            "accession": accession,
+            "gene": gene,
+            "organism": normalized.get("organism") or "",
+            "taxon_id": normalized.get("taxid") or "",
+            "reviewed": normalized.get("reviewed"),
+        },
+    )
+
+
+def uniprot_parameter_context(
+    parameter_name: str,
+    value: object,
+    *,
+    label: str,
+    description: str,
+    kind: str,
+    group: str,
+    url: str,
+    metadata: JsonObject,
+) -> JsonObject:
+    display_fields = [{"label": key.replace("_", " ").title(), "value": item} for key, item in metadata.items() if item not in ("", None, [], {})]
+    if url:
+        display_fields.append({"label": "URL", "value": url})
+    return {
+        "kind": kind,
+        "group": group,
+        "parameter_name": parameter_name,
+        "value": value,
+        "label": label,
+        "title": label,
+        "description": description,
+        "url": url,
+        "metadata": metadata,
+        "display": {
+            "component": "protein",
+            "chip_label": parameter_name,
+            "icon": "uniprot",
+            "title": label,
+            "subtitle": f"{parameter_name}: {value}",
+            "description": description,
+            "metadata": display_fields,
+            "badges": [
+                {"label": "UniProtKB", "kind": "source"},
+                {"label": parameter_name, "kind": "parameter"},
+            ],
+            "actions": [{"label": "Open source", "url": url, "kind": "external", "primary": True}] if url else [],
+            "hover": {"title": label, "subtitle": f"{parameter_name}: {value}", "icon": "uniprot", "fields": display_fields},
+            "primary_url": url,
+        },
+    }
+
+
+def uniprot_recommended_calls(entry: JsonObject) -> list[JsonObject]:
+    normalized = normalize_uniprot_entry(entry, include_raw=False, include_features=False, max_features=0, feature_types=[], max_comments=1)
+    accession = str(normalized.get("accession") or entry.get("primaryAccession") or "")
+    if not accession:
+        return []
+    calls: list[JsonObject] = [
+        {"tool_name": "uniprot_lookup", "arguments": {"accession": accession}, "reason": "Fetch detailed UniProtKB metadata and feature/cross-reference previews."},
+        {"tool_name": "uniprot_fasta", "arguments": {"accession": accession}, "reason": "Fetch the protein FASTA sequence."},
+    ]
+    xrefs = entry.get("uniProtKBCrossReferences")
+    if isinstance(xrefs, list):
+        for xref in xrefs:
+            if not isinstance(xref, dict):
+                continue
+            database = str(xref.get("database") or "")
+            value = str(xref.get("id") or "")
+            if database == "AlphaFoldDB" and value:
+                calls.append({"server": "alphafold", "tool_name": "alphafold_lookup", "arguments": {"accession": value}, "reason": "Open predicted 3D structure context for this UniProt accession."})
+            elif database == "PDB" and value:
+                calls.append({"server": "rcsb", "tool_name": "rcsb_lookup", "arguments": {"pdb_id": value}, "reason": "Open experimentally determined PDB structure context."})
+            elif database == "STRING" and value:
+                calls.append({"server": "string", "tool_name": "string_interactions", "arguments": {"identifiers": [value]}, "reason": "Inspect protein interaction partners."})
+            elif database == "PubMed" and value:
+                calls.append({"server": "ncbi", "tool_name": "pubmed_articles", "arguments": {"ids": [value]}, "reason": "Open supporting literature metadata."})
+    return calls
+
+
+def uniprot_context_matches(context: JsonObject, *, context_type: str, query: str, organism: str) -> bool:
+    if context_type != "all" and context.get("group") != context_type:
+        return False
+    metadata = context.get("metadata")
+    if organism and isinstance(metadata, dict):
+        org_text = f"{metadata.get('organism', '')} {metadata.get('taxon_id', '')}".lower()
+        if context.get("group") == "accession" and organism.lower() not in org_text:
+            return False
+    if not query:
+        return True
+    haystack_values = [context.get("parameter_name"), context.get("value"), context.get("label"), context.get("description"), context.get("kind")]
+    if isinstance(metadata, dict):
+        haystack_values.extend(metadata.values())
+    haystack = " ".join(str(item).lower() for item in haystack_values if item not in ("", None))
+    return query.lower() in haystack or context.get("group") == "accession"
+
+
 def tool_definitions() -> list[JsonObject]:
     read_only_annotations = {
         "readOnlyHint": True,
         "openWorldHint": True,
     }
     return [
+        parameter_domains_tool_definition("uniprot_parameter_domains"),
+        {
+            "name": "uniprot_resolve_context",
+            "title": "Resolve UniProt dynamic parameter context",
+            "description": (
+                "Resolve UniProt search/accession context before protein lookup or downstream structure/network calls. "
+                "Returns front-end-friendly context rows, accession URLs, cross-reference hints, and recommended calls."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "context_type": {
+                        "type": "string",
+                        "enum": UNIPROT_CONTEXT_TYPES,
+                        "default": "all",
+                    },
+                    "query": {"type": "string", "description": "Optional UniProt query such as gene:TP53."},
+                    "accession": {"type": "string", "description": "Optional UniProtKB accession such as P04637."},
+                    "organism": {"type": "string", "description": "Optional organism name or TaxID, for example 9606."},
+                    "reviewed": {"type": "boolean", "description": "Optional reviewed filter when query is provided."},
+                    "max_results": {"type": "integer", "minimum": 1, "maximum": MAX_RESULTS, "default": 10},
+                    "include_raw": {"type": "boolean", "default": False},
+                },
+                "additionalProperties": False,
+            },
+            "annotations": read_only_annotations,
+        },
         {
             "name": "uniprot_search",
             "title": "Search UniProtKB",
@@ -489,6 +786,8 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS: dict[str, Callable[[JsonObject, UniProtClient], JsonObject]] = {
+    "uniprot_parameter_domains": make_parameter_domains_handler("uniprot", "uniprot_parameter_domains", tool_definitions),
+    "uniprot_resolve_context": uniprot_resolve_context,
     "uniprot_search": uniprot_search,
     "uniprot_lookup": uniprot_lookup,
     "uniprot_fasta": uniprot_fasta,

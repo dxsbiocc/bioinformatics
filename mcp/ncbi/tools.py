@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from mcp.dynamic_context import build_dynamic_context_response
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 from typing import Callable
 
 from .bioproject import bioproject_lookup
@@ -9,6 +11,7 @@ from .biosample import biosample_lookup
 from .client import NcbiClient
 from .constants import MAX_PUBMED_IDS, JsonObject
 from .entrez import ncbi_db_info, ncbi_link, ncbi_related_records
+from .errors import McpError
 from .gene import gene_lookup
 from .geo import geo_search, geo_series
 from .manifests import (
@@ -24,9 +27,15 @@ from .pubmed import (
     pubmed_search,
     pubmed_summaries,
 )
+from .records import ncbi_database_url, ncbi_record_url
 from .sra import sra_lookup, sra_search
 from .taxonomy import taxonomy_lookup
-from .utils import optional_bool, parse_count
+from .utils import optional_bool, optional_int, parse_count, source_info
+
+
+NCBI_CONTEXT_TYPES = ["all", "databases", "literature", "omics", "entities", "links"]
+NCBI_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"
+NCBI_DYNAMIC_DATABASES = ["pubmed", "gds", "sra", "gene", "taxonomy", "bioproject", "biosample"]
 
 
 def ncbi_status(args: JsonObject, client: NcbiClient) -> JsonObject:
@@ -66,6 +75,10 @@ def ncbi_status(args: JsonObject, client: NcbiClient) -> JsonObject:
             "tool_runtime_status",
         ],
         "tool_groups": {
+            "context": [
+                "ncbi_parameter_domains",
+                "ncbi_resolve_context",
+            ],
             "literature": [
                 "pubmed_search",
                 "pubmed_summaries",
@@ -145,12 +158,324 @@ def ncbi_status(args: JsonObject, client: NcbiClient) -> JsonObject:
     return status
 
 
+def ncbi_resolve_context(args: JsonObject, client: NcbiClient) -> JsonObject:
+    context_type = optional_context_type(args, "context_type", allowed=NCBI_CONTEXT_TYPES, default="all")
+    query = optional_string(args, "query")
+    database = optional_string(args, "database").lower()
+    if database and database not in NCBI_DYNAMIC_DATABASES:
+        raise McpError(-32602, f"database must be one of: {', '.join(NCBI_DYNAMIC_DATABASES)}")
+    max_results = optional_int(args, "max_results", default=10, minimum=1, maximum=100)
+    include_raw = optional_bool(args, "include_raw", default=False)
+
+    contexts = static_ncbi_contexts()
+    sources: list[JsonObject] = []
+    raw: JsonObject = {}
+    diagnostics: list[JsonObject] = []
+    recommended_calls: list[JsonObject] = []
+    target_database = database or default_ncbi_database(context_type)
+    if query and target_database:
+        params: JsonObject = {
+            "db": target_database,
+            "term": query,
+            "retmode": "json",
+            "retmax": max_results,
+        }
+        payload = client.request_json("esearch.fcgi", params)
+        raw["esearch"] = payload
+        sources.append(source_info("esearch.fcgi", params))
+        result = payload.get("esearchresult") if isinstance(payload, dict) else {}
+        idlist = result.get("idlist") if isinstance(result, dict) else []
+        ids = [str(item) for item in idlist if str(item)]
+        contexts.extend(ncbi_identifier_context(target_database, identifier, query=query) for identifier in ids[:max_results])
+        recommended_calls.extend(ncbi_recommended_calls(target_database, query=query, ids=ids[:max_results]))
+        if not ids:
+            diagnostics.append(
+                {
+                    "code": "ncbi_context_no_matches",
+                    "severity": "info",
+                    "message": "No NCBI identifiers matched the supplied query.",
+                    "recoverable": True,
+                    "suggested_action": "Try a broader query or inspect ncbi_db_info for database-specific fields.",
+                }
+            )
+
+    filtered_contexts = [context for context in contexts if ncbi_context_matches(context, context_type=context_type, query=query, database=database)]
+    return build_dynamic_context_response(
+        schema_version="bioinformatics.ncbi.result.v1",
+        context_schema_version=NCBI_CONTEXT_SCHEMA_VERSION,
+        database="ncbi",
+        query={
+            "context_type": context_type,
+            "query": query,
+            "database": database,
+            "resolved_database": target_database,
+        },
+        contexts=filtered_contexts,
+        recommended_calls=recommended_calls,
+        max_results=max_results,
+        fallback_source=source_info("resolve_context", {"context_type": context_type, "query": query, "database": database}),
+        sources=sources,
+        entity_groups={"literature", "omics", "entities", "links"},
+        raw=raw,
+        summary_fields={
+            "databases": lambda context: context.get("parameter_name") == "database",
+            "identifiers": lambda context: context.get("kind") == "identifier",
+        },
+        extra_fields={"diagnostics": diagnostics} if diagnostics else None,
+        include_raw=include_raw,
+        dedupe_calls=False,
+    )
+
+
+def optional_string(args: JsonObject, name: str, *, default: str = "") -> str:
+    value = args.get(name, default)
+    if value is None:
+        return default
+    if not isinstance(value, str):
+        raise McpError(-32602, f"{name} must be a string")
+    return value.strip() or default
+
+
+def optional_context_type(args: JsonObject, name: str, *, allowed: list[str], default: str) -> str:
+    value = optional_string(args, name, default=default)
+    if value not in allowed:
+        raise McpError(-32602, f"{name} must be one of: {', '.join(allowed)}")
+    return value
+
+
+def default_ncbi_database(context_type: str) -> str:
+    return {
+        "literature": "pubmed",
+        "omics": "gds",
+        "entities": "gene",
+        "links": "gene",
+    }.get(context_type, "pubmed")
+
+
+def static_ncbi_contexts() -> list[JsonObject]:
+    database_groups = {
+        "pubmed": "literature",
+        "pmc": "literature",
+        "gds": "omics",
+        "sra": "omics",
+        "bioproject": "omics",
+        "biosample": "omics",
+        "gene": "entities",
+        "taxonomy": "entities",
+    }
+    contexts = [
+        parameter_context(
+            "database",
+            database,
+            label=f"NCBI {database}",
+            description="NCBI Entrez database accepted by ncbi_db_info, ncbi_link, or database-specific tools.",
+            kind="database",
+            group=database_groups.get(database, "links"),
+            url=ncbi_database_url(database),
+            metadata={"database": database, "context_type": database_groups.get(database, "links")},
+        )
+        for database in ["pubmed", "pmc", "gds", "sra", "gene", "taxonomy", "bioproject", "biosample"]
+    ]
+    examples = [
+        ("query", "cancer", "PubMed free-text query; call pubmed_search before summaries/details.", "literature", "pubmed", "pubmed_search"),
+        ("ids", "12345678", "PMID accepted by pubmed_summaries, pubmed_articles, and pubmed_fetch.", "literature", "pubmed", "pubmed_summaries"),
+        ("accession", "GSE100", "GEO Series accession accepted by geo_series and geo_download_plan.", "omics", "gds", "geo_series"),
+        ("query", "SRR7039034", "SRA run accession accepted by sra_lookup and sra_download_plan.", "omics", "sra", "sra_lookup"),
+        ("query", "PRJNA450921", "BioProject accession accepted by bioproject_lookup.", "omics", "bioproject", "bioproject_lookup"),
+        ("query", "SAMN08954945", "BioSample accession accepted by biosample_lookup.", "omics", "biosample", "biosample_lookup"),
+        ("query", "TP53", "Gene symbol or GeneID accepted by gene_lookup.", "entities", "gene", "gene_lookup"),
+        ("query", "9606", "TaxID or organism name accepted by taxonomy_lookup.", "entities", "taxonomy", "taxonomy_lookup"),
+    ]
+    contexts.extend(
+        parameter_context(
+            parameter_name,
+            value,
+            label=value,
+            description=description,
+            kind="identifier_hint",
+            group=group,
+            url=ncbi_record_url(database, value),
+            metadata={"database": database, "tool_hint": tool_hint, "context_type": group},
+        )
+        for parameter_name, value, description, group, database, tool_hint in examples
+    )
+    return contexts
+
+
+def ncbi_identifier_context(database: str, identifier: str, *, query: str) -> JsonObject:
+    return parameter_context(
+        "ids" if database in {"pubmed", "pmc"} else "query",
+        identifier,
+        label=f"{database}:{identifier}",
+        description=f"NCBI {database} identifier resolved by ESearch for {query}.",
+        kind="identifier",
+        group=database_group(database),
+        url=ncbi_record_url(database, identifier),
+        metadata={"database": database, "query": query, "tool_hint": primary_ncbi_tool(database)},
+    )
+
+
+def parameter_context(
+    parameter_name: str,
+    value: object,
+    *,
+    label: str,
+    description: str,
+    kind: str,
+    group: str,
+    url: str,
+    metadata: JsonObject,
+) -> JsonObject:
+    display_fields = [{"label": key.replace("_", " ").title(), "value": item} for key, item in metadata.items() if item not in ("", None, [], {})]
+    if url:
+        display_fields.append({"label": "URL", "value": url})
+    return {
+        "kind": kind,
+        "group": group,
+        "parameter_name": parameter_name,
+        "value": value,
+        "label": label,
+        "title": label,
+        "description": description,
+        "url": url,
+        "metadata": metadata,
+        "display": {
+            "component": "dataset",
+            "chip_label": parameter_name,
+            "icon": "ncbi",
+            "title": label,
+            "subtitle": f"{parameter_name}: {value}",
+            "description": description,
+            "metadata": display_fields,
+            "badges": [
+                {"label": "NCBI", "kind": "source"},
+                {"label": parameter_name, "kind": "parameter"},
+            ],
+            "actions": [{"label": "Open source", "url": url, "kind": "external", "primary": True}] if url else [],
+            "hover": {"title": label, "subtitle": f"{parameter_name}: {value}", "icon": "ncbi", "fields": display_fields},
+            "primary_url": url,
+        },
+    }
+
+
+def database_group(database: str) -> str:
+    if database in {"pubmed", "pmc"}:
+        return "literature"
+    if database in {"gds", "sra", "bioproject", "biosample"}:
+        return "omics"
+    if database in {"gene", "taxonomy"}:
+        return "entities"
+    return "links"
+
+
+def primary_ncbi_tool(database: str) -> str:
+    return {
+        "pubmed": "pubmed_summaries",
+        "pmc": "pmc_id_convert",
+        "gds": "geo_search",
+        "sra": "sra_lookup",
+        "gene": "gene_lookup",
+        "taxonomy": "taxonomy_lookup",
+        "bioproject": "bioproject_lookup",
+        "biosample": "biosample_lookup",
+    }.get(database, "ncbi_db_info")
+
+
+def ncbi_recommended_calls(database: str, *, query: str, ids: list[str]) -> list[JsonObject]:
+    if database == "pubmed":
+        return [
+            {"tool_name": "pubmed_search", "arguments": {"query": query}, "reason": "Search PubMed and hydrate citation summaries."},
+            {"tool_name": "pubmed_summaries", "arguments": {"ids": ids}, "reason": "Fetch summary metadata for resolved PMIDs."},
+            {"tool_name": "pubmed_articles", "arguments": {"ids": ids}, "reason": "Fetch parsed article details for resolved PMIDs."},
+        ]
+    if database == "gds":
+        calls = [{"tool_name": "geo_search", "arguments": {"query": query}, "reason": "Resolve GEO DataSets metadata for this query."}]
+        if query.strip().upper().startswith("GSE"):
+            calls.extend(
+                [
+                    {"tool_name": "geo_series", "arguments": {"accession": query.strip().upper()}, "reason": "Fetch exact GEO Series metadata."},
+                    {"tool_name": "geo_download_plan", "arguments": {"accession": query.strip().upper()}, "reason": "Build metadata-only GEO download links."},
+                ]
+            )
+        return calls
+    if database == "sra":
+        return [
+            {"tool_name": "sra_lookup", "arguments": {"query": query}, "reason": "Fetch normalized SRA run/experiment metadata."},
+            {"tool_name": "sra_download_plan", "arguments": {"query": query}, "reason": "Build a metadata-only SRA download plan."},
+        ]
+    if database == "gene":
+        return [{"tool_name": "gene_lookup", "arguments": {"query": query}, "reason": "Resolve GeneID, symbol, organism, and genomic metadata."}]
+    if database == "taxonomy":
+        return [{"tool_name": "taxonomy_lookup", "arguments": {"query": query}, "reason": "Resolve TaxID or scientific name metadata."}]
+    if database == "bioproject":
+        return [{"tool_name": "bioproject_lookup", "arguments": {"query": query}, "reason": "Resolve BioProject metadata and linked SRA context."}]
+    if database == "biosample":
+        return [{"tool_name": "biosample_lookup", "arguments": {"query": query}, "reason": "Resolve BioSample attributes and linked omics identifiers."}]
+    return [{"tool_name": "ncbi_db_info", "arguments": {"database": database}, "reason": "Inspect database fields and links before constructing a specific call."}]
+
+
+def ncbi_context_matches(context: JsonObject, *, context_type: str, query: str, database: str) -> bool:
+    if context_type != "all" and context.get("group") != context_type and context.get("parameter_name") != "database":
+        return False
+    metadata = context.get("metadata")
+    if database and isinstance(metadata, dict) and metadata.get("database") != database:
+        return False
+    if not query:
+        return True
+    haystack_values = [context.get("parameter_name"), context.get("value"), context.get("label"), context.get("description"), context.get("kind")]
+    if isinstance(metadata, dict):
+        haystack_values.extend(metadata.values())
+    haystack = " ".join(str(item).lower() for item in haystack_values if item not in ("", None))
+    return query.lower() in haystack or context.get("kind") == "identifier"
+
+
 def tool_definitions() -> list[JsonObject]:
     read_only_annotations = {
         "readOnlyHint": True,
         "openWorldHint": True,
     }
     return [
+        parameter_domains_tool_definition("ncbi_parameter_domains"),
+        {
+            "name": "ncbi_resolve_context",
+            "title": "Resolve NCBI dynamic parameter context",
+            "description": (
+                "Resolve NCBI Entrez database names and common identifiers before PubMed, GEO, SRA, Gene, Taxonomy, "
+                "BioProject, or BioSample calls. Returns front-end-friendly context rows, source URLs, and recommended calls."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "context_type": {
+                        "type": "string",
+                        "enum": NCBI_CONTEXT_TYPES,
+                        "default": "all",
+                        "description": "Context family to resolve before choosing an NCBI tool.",
+                    },
+                    "query": {
+                        "type": "string",
+                        "description": "Optional search text or accession, for example TP53, GSE100, SRR7039034, or cancer.",
+                    },
+                    "database": {
+                        "type": "string",
+                        "enum": NCBI_DYNAMIC_DATABASES,
+                        "description": "Optional Entrez database to search for identifier candidates.",
+                    },
+                    "max_results": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 100,
+                        "default": 10,
+                    },
+                    "include_raw": {
+                        "type": "boolean",
+                        "default": False,
+                    },
+                },
+                "additionalProperties": False,
+            },
+            "annotations": read_only_annotations,
+        },
         {
             "name": "pubmed_search",
             "title": "Search PubMed",
@@ -906,6 +1231,8 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS: dict[str, Callable[[JsonObject, NcbiClient], JsonObject]] = {
+    "ncbi_parameter_domains": make_parameter_domains_handler("ncbi", "ncbi_parameter_domains", tool_definitions),
+    "ncbi_resolve_context": ncbi_resolve_context,
     "pubmed_search": pubmed_search,
     "pubmed_summaries": pubmed_summaries,
     "pubmed_articles": pubmed_articles,

@@ -110,7 +110,7 @@ class StringMcpServerTests(unittest.TestCase):
         )
         assert response is not None
         names = {tool["name"] for tool in response["result"]["tools"]}
-        self.assertEqual(names, {"string_map", "string_interactions", "string_status"})
+        self.assertEqual(names, {"string_parameter_domains", "string_resolve_context", "string_map", "string_interactions", "string_status"})
 
     def test_string_map_returns_frontend_compatible_mapping_records(self) -> None:
         result = self.call_tool(
@@ -136,6 +136,15 @@ class StringMcpServerTests(unittest.TestCase):
         self.assertEqual(record["identifiers"]["taxonomy"]["label"], "TaxID:9606")
         preview_kinds = {preview["kind"] for preview in record["display"]["previews"]}
         self.assertIn("xref_groups", preview_kinds)
+
+    def test_resolve_context_maps_identifiers_and_recommends_interactions(self) -> None:
+        result = self.call_tool("string_resolve_context", {"identifiers": "TP53", "species": 9606})
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(result["mappings"][0]["value"], "9606.ENSP00000269305")
+        self.assertEqual(result["mappings"][0]["metadata"]["preferred_name"], "TP53")
+        tool_names = {call["tool_name"] for call in result["recommended_calls"]}
+        self.assertIn("string_map", tool_names)
+        self.assertIn("string_interactions", tool_names)
 
     def test_string_interactions_returns_network_record(self) -> None:
         result = self.call_tool(

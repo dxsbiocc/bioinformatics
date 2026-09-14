@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from mcp.dynamic_context import build_dynamic_context_response
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 from typing import Callable
 
 from .client import RcsbClient
@@ -14,6 +16,7 @@ from .constants import (
     RESULT_SCHEMA_VERSION,
     JsonObject,
 )
+from .errors import McpError
 from .records import rcsb_fasta_record, rcsb_structure_record
 from .utils import (
     normalize_space,
@@ -23,6 +26,11 @@ from .utils import (
     require_pdb_id,
     source_info,
 )
+
+
+RCSB_CONTEXT_TYPES = ["all", "search", "entry", "downloads"]
+RCSB_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"
+RCSB_DOWNLOAD_OPTIONS = ["pdb", "cif", "bcif", "pdbx", "fasta"]
 
 
 def rcsb_status(args: JsonObject, client: RcsbClient) -> JsonObject:
@@ -41,6 +49,7 @@ def rcsb_status(args: JsonObject, client: RcsbClient) -> JsonObject:
         "available_tools": available_tools,
         "available_databases": ["rcsb_pdb"],
         "tool_groups": {
+            "context": ["rcsb_parameter_domains", "rcsb_resolve_context"],
             "protein_structure": [
                 "rcsb_lookup",
                 "rcsb_search",
@@ -65,6 +74,69 @@ def rcsb_status(args: JsonObject, client: RcsbClient) -> JsonObject:
             "entry_id": entry.get("rcsb_id"),
         }
     return status
+
+
+def rcsb_resolve_context(args: JsonObject, client: RcsbClient) -> JsonObject:
+    context_type = optional_context_type(args, "context_type", allowed=RCSB_CONTEXT_TYPES, default="all")
+    query = optional_string(args, "query")
+    pdb_id = optional_string(args, "pdb_id")
+    max_results = optional_int(args, "max_results", default=10, minimum=1, maximum=MAX_SEARCH_RESULTS)
+    include_raw = optional_bool(args, "include_raw", default=False)
+    contexts = static_rcsb_contexts(client)
+    recommended_calls: list[JsonObject] = []
+    sources: list[JsonObject] = []
+    raw: JsonObject = {}
+
+    if pdb_id:
+        pdb_id = require_pdb_id({"pdb_id": pdb_id})
+        endpoint = f"core/entry/{pdb_id}"
+        entry, headers = client.request_data_json_with_headers(endpoint, {})
+        raw["entry"] = entry
+        sources.append(source_with_headers(endpoint, {}, headers))
+        contexts.append(rcsb_entry_context(entry, client))
+        recommended_calls.extend(rcsb_recommended_calls(pdb_id))
+
+    if query:
+        payload: JsonObject = {
+            "query": {
+                "type": "terminal",
+                "service": "full_text",
+                "parameters": {"value": query},
+            },
+            "return_type": "entry",
+            "request_options": {"paginate": {"start": 0, "rows": max_results}},
+        }
+        search_payload, headers = client.request_search_json_with_headers("query", payload)
+        raw["search"] = search_payload
+        sources.append(source_with_headers("query", {"json_body": payload}, headers))
+        hits = [item for item in search_payload.get("result_set", []) if isinstance(item, dict) and normalize_space(item.get("identifier"))]
+        for hit in hits[:max_results]:
+            hit_id = normalize_space(hit.get("identifier")).upper()
+            contexts.append(rcsb_hit_context(hit_id, client, score=hit.get("score", "")))
+            recommended_calls.extend(rcsb_recommended_calls(hit_id))
+
+    query_text = query or pdb_id
+    filtered_contexts = [context for context in contexts if rcsb_context_matches(context, context_type=context_type, query=query_text)]
+    return build_dynamic_context_response(
+        schema_version=RESULT_SCHEMA_VERSION,
+        context_schema_version=RCSB_CONTEXT_SCHEMA_VERSION,
+        database="rcsb_pdb",
+        query={
+            "context_type": context_type,
+            "query": query,
+            "pdb_id": pdb_id,
+        },
+        contexts=filtered_contexts,
+        recommended_calls=recommended_calls,
+        max_results=max_results,
+        fallback_source=source_info("resolve_context", {"context_type": context_type, "query": query, "pdb_id": pdb_id}),
+        sources=sources,
+        entity_groups={"entry"},
+        raw=raw,
+        summary_fields={"entries": lambda context: context.get("parameter_name") == "pdb_id"},
+        include_raw=include_raw,
+        call_dedupe_include_server=False,
+    )
 
 
 def rcsb_lookup(args: JsonObject, client: RcsbClient) -> JsonObject:
@@ -286,12 +358,187 @@ def source_with_headers(
     return source
 
 
+def optional_string(args: JsonObject, name: str, *, default: str = "") -> str:
+    value = args.get(name, default)
+    if value is None:
+        return default
+    if not isinstance(value, str):
+        raise McpError(-32602, f"{name} must be a string")
+    return value.strip() or default
+
+
+def optional_context_type(args: JsonObject, name: str, *, allowed: list[str], default: str) -> str:
+    value = optional_string(args, name, default=default)
+    if value not in allowed:
+        raise McpError(-32602, f"{name} must be one of: {', '.join(allowed)}")
+    return value
+
+
+def static_rcsb_contexts(client: RcsbClient) -> list[JsonObject]:
+    contexts = [
+        rcsb_parameter_context(
+            "context_type",
+            value,
+            label=value,
+            description="Dynamic RCSB context family to resolve before choosing search, lookup, FASTA, or download views.",
+            kind="enum",
+            group="search",
+            url="",
+            metadata={"context_type": value},
+        )
+        for value in RCSB_CONTEXT_TYPES
+    ]
+    contexts.extend(
+        rcsb_parameter_context(
+            "download_option",
+            value,
+            label=value,
+            description="Common RCSB downloadable representation or sequence endpoint.",
+            kind="download_option",
+            group="downloads",
+            url=f"{client.config.website_base_url.rstrip('/')}/docs/programmatic-access/file-download-services",
+            metadata={"tool_hint": "rcsb_lookup" if value != "fasta" else "rcsb_fasta"},
+        )
+        for value in RCSB_DOWNLOAD_OPTIONS
+    )
+    return contexts
+
+
+def rcsb_entry_context(entry: JsonObject, client: RcsbClient) -> JsonObject:
+    pdb_id = normalize_space(entry.get("rcsb_id")).upper()
+    title = normalize_space(entry.get("struct", {}).get("title") if isinstance(entry.get("struct"), dict) else "") or pdb_id
+    info = entry.get("rcsb_entry_info") if isinstance(entry.get("rcsb_entry_info"), dict) else {}
+    return rcsb_parameter_context(
+        "pdb_id",
+        pdb_id,
+        label=title,
+        description="RCSB PDB entry ID resolved through the Data API.",
+        kind="pdb_entry",
+        group="entry",
+        url=rcsb_entry_url(client, pdb_id),
+        metadata={
+            "pdb_id": pdb_id,
+            "method": info.get("experimental_method") or "",
+            "resolution": first_resolution(info),
+            "tool_hint": "rcsb_lookup",
+        },
+    )
+
+
+def rcsb_hit_context(pdb_id: str, client: RcsbClient, *, score: object) -> JsonObject:
+    return rcsb_parameter_context(
+        "pdb_id",
+        pdb_id,
+        label=f"PDB {pdb_id}",
+        description="RCSB PDB search hit. Use rcsb_lookup to hydrate full structure metadata.",
+        kind="pdb_search_hit",
+        group="entry",
+        url=rcsb_entry_url(client, pdb_id),
+        metadata={"pdb_id": pdb_id, "search_score": score, "tool_hint": "rcsb_lookup"},
+    )
+
+
+def rcsb_parameter_context(
+    parameter_name: str,
+    value: object,
+    *,
+    label: str,
+    description: str,
+    kind: str,
+    group: str,
+    url: str,
+    metadata: JsonObject,
+) -> JsonObject:
+    display_fields = [{"label": key.replace("_", " ").title(), "value": item} for key, item in metadata.items() if item not in ("", None, [], {})]
+    if url:
+        display_fields.append({"label": "URL", "value": url})
+    return {
+        "kind": kind,
+        "group": group,
+        "parameter_name": parameter_name,
+        "value": value,
+        "label": label,
+        "title": label,
+        "description": description,
+        "url": url,
+        "metadata": metadata,
+        "display": {
+            "component": "protein_structure" if group in {"entry", "downloads"} else "dataset",
+            "chip_label": parameter_name,
+            "icon": "rcsb",
+            "title": label,
+            "subtitle": f"{parameter_name}: {value}",
+            "description": description,
+            "metadata": display_fields,
+            "badges": [
+                {"label": "RCSB PDB", "kind": "source"},
+                {"label": parameter_name, "kind": "parameter"},
+            ],
+            "actions": [{"label": "Open source", "url": url, "kind": "external", "primary": True}] if url else [],
+            "hover": {"title": label, "subtitle": f"{parameter_name}: {value}", "icon": "rcsb", "fields": display_fields},
+            "primary_url": url,
+        },
+    }
+
+
+def rcsb_recommended_calls(pdb_id: str) -> list[JsonObject]:
+    return [
+        {"tool_name": "rcsb_lookup", "arguments": {"pdb_id": pdb_id}, "reason": "Hydrate structure metadata, citations, ligands, UniProt IDs, and 3D/download previews."},
+        {"tool_name": "rcsb_fasta", "arguments": {"pdb_id": pdb_id}, "reason": "Fetch FASTA sequences for polymer entities in this PDB entry."},
+    ]
+
+
+def rcsb_context_matches(context: JsonObject, *, context_type: str, query: str) -> bool:
+    if context_type != "all" and context.get("group") != context_type:
+        return False
+    if not query:
+        return True
+    metadata = context.get("metadata")
+    fields = [context.get("parameter_name"), context.get("value"), context.get("label"), context.get("description"), context.get("kind")]
+    if isinstance(metadata, dict):
+        fields.extend(metadata.values())
+    haystack = " ".join(str(field).lower() for field in fields if field not in ("", None))
+    return query.lower() in haystack or context.get("group") == "entry"
+
+
+def first_resolution(info: JsonObject) -> object:
+    values = info.get("resolution_combined")
+    if isinstance(values, list) and values:
+        return values[0]
+    return ""
+
+
+def rcsb_entry_url(client: RcsbClient, pdb_id: str) -> str:
+    return f"{client.config.website_base_url.rstrip('/')}/structure/{pdb_id}"
+
+
 def tool_definitions() -> list[JsonObject]:
     read_only_annotations = {
         "readOnlyHint": True,
         "openWorldHint": True,
     }
     return [
+        parameter_domains_tool_definition("rcsb_parameter_domains"),
+        {
+            "name": "rcsb_resolve_context",
+            "title": "Resolve RCSB PDB dynamic parameter context",
+            "description": (
+                "Resolve RCSB PDB search hits, entry IDs, and download/FASTA context before structure calls. "
+                "Returns front-end-friendly context rows, structure URLs, and recommended lookup/FASTA calls."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "context_type": {"type": "string", "enum": RCSB_CONTEXT_TYPES, "default": "all"},
+                    "query": {"type": "string", "description": "Optional full-text RCSB search query, for example hemoglobin."},
+                    "pdb_id": {"type": "string", "description": "Optional 4-character PDB entry ID, for example 4HHB."},
+                    "max_results": {"type": "integer", "minimum": 1, "maximum": MAX_SEARCH_RESULTS, "default": 10},
+                    "include_raw": {"type": "boolean", "default": False},
+                },
+                "additionalProperties": False,
+            },
+            "annotations": read_only_annotations,
+        },
         {
             "name": "rcsb_lookup",
             "title": "Look up an RCSB PDB structure entry",
@@ -402,9 +649,10 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS: dict[str, Callable[[JsonObject, RcsbClient], JsonObject]] = {
+    "rcsb_parameter_domains": make_parameter_domains_handler("rcsb", "rcsb_parameter_domains", tool_definitions),
+    "rcsb_resolve_context": rcsb_resolve_context,
     "rcsb_lookup": rcsb_lookup,
     "rcsb_search": rcsb_search,
     "rcsb_fasta": rcsb_fasta,
     "rcsb_status": rcsb_status,
 }
-
