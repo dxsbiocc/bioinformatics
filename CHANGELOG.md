@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased - HTTP Client Migration - 2026-09-14
+
+### Changed
+
+- Every MCP server's outbound HTTP now goes through
+  [httpx](https://www.python-httpx.org/) instead of the standard library's
+  `urllib`, using one lazily created, reused `httpx.Client(http2=True)` per
+  server process for connection reuse and HTTP/2 support. This is the plugin's
+  first third-party Python dependency (`httpx[http2]`); see
+  [pyproject.toml](../pyproject.toml).
+- Each client's opener test-injection seam now passes an `httpx.Request`
+  instead of a `urllib.request.Request`.
+- Retry loops now catch only `httpx.RequestError` (genuine transport
+  failures: timeout, connection reset) instead of `urllib.error.URLError`,
+  which in urllib also silently retried on HTTP status errors since
+  `HTTPError` subclasses `URLError`. httpx separates these into
+  `HTTPStatusError`, so 4xx/5xx responses now propagate immediately instead
+  of being retried.
+
 ## Unreleased - Visualization Routing Fast Path - 2026-09-12
 
 ### Added

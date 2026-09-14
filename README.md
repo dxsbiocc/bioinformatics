@@ -7,10 +7,9 @@ set of Skills for running omics analysis, search, and visualization workflows
 on top of them.
 
 Every server speaks MCP over stdio by hand — there is no MCP SDK dependency.
-Outbound HTTP is being migrated from the standard library's `urllib` to
-[httpx](https://www.python-httpx.org/) for connection reuse, timeout control,
-and HTTP/2; as of 2026-09 only the `ncbi` server has been migrated (pilot),
-the rest still use `urllib` directly. Responses follow a shared,
+Outbound HTTP goes through [httpx](https://www.python-httpx.org/) (with
+HTTP/2) using one reused `httpx.Client` per server process, instead of the
+standard library's `urllib`. Responses follow a shared,
 app-renderable record contract (see
 [docs/frontend-record-rendering.md](docs/frontend-record-rendering.md)) so a
 front end can render results consistently across all 29 servers without
@@ -76,7 +75,7 @@ arguments before a fetch call). See [docs/mcp-parameter-domains.md](docs/mcp-par
 ## Requirements
 
 - Python 3.10+ (developed against 3.12). One third-party dependency,
-  `httpx[http2]`, used so far only by the `ncbi` server; see
+  `httpx[http2]`, used by every MCP server for outbound HTTP; see
   [pyproject.toml](pyproject.toml). Install with `pip install -e .` or
   `pip install 'httpx[http2]'`.
 - R 4.x, only if you use the `omics-visualization` or

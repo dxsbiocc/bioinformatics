@@ -9,10 +9,9 @@ dependencies = [
 
 # Every MCP server under mcp/ implements the MCP stdio protocol by hand using
 # only the Python standard library (json, xml, etc.) for everything except
-# outbound HTTP, which goes through httpx for connection reuse, timeout
-# control, and HTTP/2. There is no MCP SDK dependency. As of 2026-09, only
-# the ncbi server has been migrated from urllib to httpx (pilot); the rest
-# still use urllib directly. This file exists so the dependency set is
+# outbound HTTP, which goes through httpx (one reused httpx.Client per
+# server process) for connection reuse, timeout control, and HTTP/2. There
+# is no MCP SDK dependency. This file exists so the dependency set is
 # explicit and versioned, and so tooling (uv, pip, IDEs) can discover the
 # supported Python version.
 #
