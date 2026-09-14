@@ -19,6 +19,71 @@
   and PNG/SVG artifact checks.
 - Local omics visualization MCP server with template routing, contract
   coverage, and status tools that return app-renderable dataset/table records.
+- Shared parameter-domain discovery for every MCP server through
+  `<server>_parameter_domains` tools. These tools search existing input
+  schemas for enum values, boolean flags, numeric ranges, array item domains,
+  required fields, defaults, descriptions, and dynamic-value hints so agents can
+  construct better calls before invoking database fetch tools.
+- KEGG MCP server wrapping the official REST operations `info`, `list`, `find`,
+  `get`, `conv`, `link`, and `ddi`, with front-end-compatible pathway, gene,
+  compound, database, linkset, identifier-conversion, sequence, and downloadable
+  resource records plus KEGG entry links, REST provenance URLs, preview hints,
+  parameter-domain discovery, and 3 requests/second pacing metadata.
+- KEGG pathway coloring MCP tools that generate official `show_pathway`
+  colored-map URLs from explicit KEGG ID/color items or differential-style
+  result-table rows, returning clickable pathway records with preserved
+  `multi_query` text and table previews for front-end interaction.
+- Dynamic parameter context tools for cBioPortal and KEGG. `cbioportal_resolve_context`
+  resolves study/profile/sample-list/clinical-attribute candidates, validates
+  profile and sample-list study compatibility, and returns recommended fetch
+  calls. `kegg_resolve_context` resolves KEGG databases, organism codes,
+  pathway map IDs, pathway-coloring hints, real source URLs, and recommended
+  KEGG REST or colored-pathway calls.
+- Second dynamic-context batch for NCBI, UniProt, STRING, and RCSB PDB.
+  `ncbi_resolve_context`, `uniprot_resolve_context`,
+  `string_resolve_context`, and `rcsb_resolve_context` expose database-backed
+  identifier candidates, browser URLs, cross-database hints, and recommended
+  follow-up calls using the same front-end-compatible `contexts` contract.
+- Third dynamic-context batch for Reactome, QuickGO, ChEMBL, Ensembl, and
+  ClinVar. `reactome_resolve_context`, `quickgo_resolve_context`,
+  `chembl_resolve_context`, `ensembl_resolve_context`, and
+  `clinvar_resolve_context` resolve pathway, ontology, compound/target,
+  genomic-feature, and variant parameter context with real source URLs,
+  display metadata, and recommended follow-up calls.
+- Fourth dynamic-context batch for Open Targets, GWAS Catalog, gnomAD,
+  PubChem, and ChEBI. `opentargets_resolve_context`, `gwas_resolve_context`,
+  `gnomad_resolve_context`, `pubchem_resolve_context`, and
+  `chebi_resolve_context` resolve target/disease, variant/gene/trait,
+  frequency/constraint, compound/assay/substance, and ontology/compound
+  parameter context with entity-first ordering, real browser URLs, hover-ready
+  display metadata, and same-server recommended calls before cross-database
+  follow-ups.
+- Optional live MCP smoke tests for the latest dynamic-context batch, gated by
+  `BIOINFORMATICS_LIVE_MCP_SMOKE=1` with server filtering through
+  `BIOINFORMATICS_LIVE_MCP_SERVERS`, so real API compatibility can be checked
+  without adding network dependence to default test runs.
+- Expanded live MCP smoke coverage across NCBI, UniProt, STRING, RCSB PDB,
+  Reactome, QuickGO, ChEMBL, Ensembl, ClinVar, Open Targets, GWAS Catalog,
+  gnomAD, PubChem, ChEBI, cBioPortal, and KEGG, including URL-preservation
+  assertions and transient-network skips for flaky upstream API timeouts.
+- Shared dynamic-context helper module for entity-first context ordering,
+  same-server recommended-call priority, duplicate recommended-call removal,
+  and compact entity summaries across NCBI, UniProt, STRING, RCSB PDB,
+  Reactome, QuickGO, ChEMBL, Ensembl, ClinVar, Open Targets, GWAS Catalog,
+  gnomAD, PubChem, and ChEBI. RCSB keeps its historical tool/argument-only
+  dedupe rule through an explicit helper option.
+- Shared dynamic-context response builder for Open Targets, GWAS Catalog,
+  gnomAD, PubChem, and ChEBI, keeping `contexts`, `entities`,
+  `recommended_calls`, `source`, `sources`, `provenance`, and optional `raw`
+  fields consistent for front-end consumption.
+- Extended the shared dynamic-context response builder across NCBI, UniProt,
+  STRING, RCSB PDB, Reactome, QuickGO, ChEMBL, Ensembl, ClinVar, cBioPortal,
+  and KEGG while preserving legacy summary aliases such as `pathways`,
+  `variants`, `features`, `studies`, and `databases`.
+- Added a front-end dynamic-context contract with
+  `schemas/dynamic-context.schema.json`, TypeScript interfaces and helpers in
+  `types/record.ts`, and rendering guidance for `contexts`, `entities`,
+  `recommended_calls`, diagnostics, hover payloads, and URL routing.
 - First broad contract-coverage batch for common bar, boxplot, line, scatter,
   heatmap, Sankey, tree, sunburst, and radar templates, raising routed catalog
   coverage to 62 of 152 templates without gene- or project-specific rules.
@@ -38,6 +103,10 @@
 - Plugin source hygiene regression test that blocks local transient artifacts
   such as system cache files, R plotting scratch output, and top-level result
   folders from entering the plugin package.
+- MCP inventory contract regression test that keeps `.mcp.json`, server
+  entrypoints, `tools/list`, `TOOL_HANDLERS`, primary status `available_tools`,
+  parameter-domain tools, and manifest capability coverage aligned before
+  sealing plugin updates.
 
 ### Changed
 
@@ -70,6 +139,10 @@
   annotated with risks when companion identifiers do not align with the main
   table; the router reports the issue but does not silently filter, reorder, or
   repair user data.
+- cBioPortal dynamic context now tags study, profile, sample-list, and clinical
+  attribute contexts with entity groups and prioritizes them ahead of static
+  enum hints, so small `max_results` windows still expose clickable front-end
+  entities.
 
 ## 0.1.0 - NCBI MCP Baseline - 2026-09-08
 
