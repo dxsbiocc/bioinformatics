@@ -1,14 +1,17 @@
 # Bioinformatics MCP Plugin
 
-A collection of dependency-free [Model Context Protocol](https://modelcontextprotocol.io)
+A collection of [Model Context Protocol](https://modelcontextprotocol.io)
 servers that give an LLM agent (Claude, Codex, or any MCP-compatible host) read
 access to major public bioinformatics databases and literature sources, plus a
 set of Skills for running omics analysis, search, and visualization workflows
 on top of them.
 
-Every server speaks MCP over stdio using only the Python standard library —
-there is no MCP SDK dependency and no third-party HTTP client. Responses
-follow a shared, app-renderable record contract (see
+Every server speaks MCP over stdio by hand — there is no MCP SDK dependency.
+Outbound HTTP is being migrated from the standard library's `urllib` to
+[httpx](https://www.python-httpx.org/) for connection reuse, timeout control,
+and HTTP/2; as of 2026-09 only the `ncbi` server has been migrated (pilot),
+the rest still use `urllib` directly. Responses follow a shared,
+app-renderable record contract (see
 [docs/frontend-record-rendering.md](docs/frontend-record-rendering.md)) so a
 front end can render results consistently across all 29 servers without
 per-database special-casing.
@@ -72,9 +75,10 @@ arguments before a fetch call). See [docs/mcp-parameter-domains.md](docs/mcp-par
 
 ## Requirements
 
-- Python 3.10+ (developed against 3.12). No third-party Python packages —
-  everything under `mcp/` uses only the standard library; see
-  [pyproject.toml](pyproject.toml).
+- Python 3.10+ (developed against 3.12). One third-party dependency,
+  `httpx[http2]`, used so far only by the `ncbi` server; see
+  [pyproject.toml](pyproject.toml). Install with `pip install -e .` or
+  `pip install 'httpx[http2]'`.
 - R 4.x, only if you use the `omics-visualization` or
   `transcriptomics-analysis` skills' plotting/analysis scripts. Install the
   required CRAN, Bioconductor, and GitHub packages with:

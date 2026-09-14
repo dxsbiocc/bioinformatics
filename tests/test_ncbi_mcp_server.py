@@ -591,8 +591,8 @@ class NcbiMcpServerTests(unittest.TestCase):
     def test_ncbi_client_adds_tool_email_and_api_key(self) -> None:
         captured_urls = []
 
-        def opener(request, timeout):
-            captured_urls.append(request.full_url)
+        def opener(url, headers, timeout):
+            captured_urls.append(url)
             return "{}"
 
         client = ncbi.NcbiClient(

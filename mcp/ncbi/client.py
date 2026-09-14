@@ -5,14 +5,18 @@ from __future__ import annotations
 import json
 import os
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass
 from typing import Callable
 
+import httpx
+
 from .constants import DEFAULT_TOOL_NAME, NCBI_EUTILS_BASE_URL, JsonObject
 from .errors import NcbiError
+
+# (url, headers, timeout_seconds) -> response body text. Test seam for
+# injecting a fake transport without touching the shared httpx.Client.
+Opener = Callable[[str, dict[str, str], float], str]
 
 
 @dataclass
@@ -40,7 +44,7 @@ class NcbiClient:
         self,
         config: NcbiConfig | None = None,
         *,
-        opener: Callable[[urllib.request.Request, float], str] | None = None,
+        opener: Opener | None = None,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -49,6 +53,21 @@ class NcbiClient:
         self._sleep = sleep
         self._monotonic = monotonic
         self._last_request_at = 0.0
+        self._http: httpx.Client | None = None
+
+    @property
+    def _client(self) -> httpx.Client:
+        if self._http is None:
+            self._http = httpx.Client(
+                http2=True,
+                timeout=httpx.Timeout(self.config.timeout_seconds),
+            )
+        return self._http
+
+    def close(self) -> None:
+        if self._http is not None:
+            self._http.close()
+            self._http = None
 
     @property
     def requests_per_second(self) -> int:
@@ -103,27 +122,22 @@ class NcbiClient:
         return payload
 
     def _open_url(self, url: str, label: str) -> str:
-        request = urllib.request.Request(
-            url,
-            headers={
-                "Accept": "application/json, application/xml, text/plain",
-                "User-Agent": self._user_agent(),
-            },
-        )
+        headers = {
+            "Accept": "application/json, application/xml, text/plain",
+            "User-Agent": self._user_agent(),
+        }
         try:
             if self._opener is not None:
-                return self._opener(request, self.config.timeout_seconds)
-            with urllib.request.urlopen(
-                request,
-                timeout=self.config.timeout_seconds,
-            ) as response:
-                return response.read().decode("utf-8", errors="replace")
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
+                return self._opener(url, headers, self.config.timeout_seconds)
+            response = self._client.get(url, headers=headers)
+            response.raise_for_status()
+            return response.text
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text
             raise NcbiError(
-                f"NCBI {label} returned HTTP {exc.code}: {detail[:500]}"
+                f"NCBI {label} returned HTTP {exc.response.status_code}: {detail[:500]}"
             ) from exc
-        except urllib.error.URLError as exc:
+        except httpx.HTTPError as exc:
             raise NcbiError(f"Could not reach NCBI {label}: {exc}") from exc
 
     def request_json(self, endpoint: str, params: JsonObject) -> JsonObject:
