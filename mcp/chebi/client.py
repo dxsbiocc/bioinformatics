@@ -5,11 +5,11 @@ from __future__ import annotations
 import json
 import os
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable
+
+import httpx
 
 from .constants import CHEBI_API_BASE_URL, CHEBI_WEBSITE_BASE_URL, DEFAULT_TOOL_NAME, JsonObject
 from .errors import ChebiError
@@ -42,7 +42,7 @@ class ChebiClient:
         self,
         config: ChebiConfig | None = None,
         *,
-        opener: Callable[[urllib.request.Request, float], str | tuple[str, dict[str, str]]] | None = None,
+        opener: Callable[[httpx.Request, float], str | tuple[str, dict[str, str]]] | None = None,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
@@ -51,6 +51,21 @@ class ChebiClient:
         self._sleep = sleep
         self._monotonic = monotonic
         self._last_request_at = 0.0
+        self._http: httpx.Client | None = None
+
+    @property
+    def _client(self) -> httpx.Client:
+        if self._http is None:
+            self._http = httpx.Client(
+                http2=True,
+                timeout=httpx.Timeout(self.config.timeout_seconds),
+            )
+        return self._http
+
+    def close(self) -> None:
+        if self._http is not None:
+            self._http.close()
+            self._http = None
 
     @property
     def requests_per_second(self) -> int:
@@ -79,13 +94,13 @@ class ChebiClient:
         return url
 
     def _open_url(self, url: str, label: str, *, accept: str) -> tuple[str, dict[str, str]]:
-        request = urllib.request.Request(
+        request = httpx.Request(
+            "GET",
             url,
             headers={
                 "Accept": accept,
                 "User-Agent": self._user_agent(),
             },
-            method="GET",
         )
         try:
             if self._opener is not None:
@@ -95,18 +110,19 @@ class ChebiClient:
                 return opened, {}
             for attempt in range(self.config.max_retries + 1):
                 try:
-                    with urllib.request.urlopen(request, timeout=self.config.timeout_seconds) as response:
-                        headers = {key.lower(): value for key, value in response.headers.items()}
-                        return response.read().decode("utf-8", errors="replace"), headers
-                except urllib.error.URLError:
+                    response = self._client.send(request)
+                    response.raise_for_status()
+                    headers = {key.lower(): value for key, value in response.headers.items()}
+                    return response.read().decode("utf-8", errors="replace"), headers
+                except httpx.RequestError:
                     if attempt >= self.config.max_retries:
                         raise
                     self._sleep(self.config.retry_base_seconds * (attempt + 1))
             raise ChebiError(f"Could not reach ChEBI {label}")
-        except urllib.error.HTTPError as exc:
-            detail = exc.read().decode("utf-8", errors="replace")
-            raise ChebiError(f"ChEBI {label} returned HTTP {exc.code}: {detail[:500]}") from exc
-        except urllib.error.URLError as exc:
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text
+            raise ChebiError(f"ChEBI {label} returned HTTP {exc.response.status_code}: {detail[:500]}") from exc
+        except httpx.RequestError as exc:
             raise ChebiError(f"Could not reach ChEBI {label}: {exc}") from exc
 
     def _throttle(self) -> None:
