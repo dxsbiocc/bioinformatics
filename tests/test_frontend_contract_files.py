@@ -29,16 +29,42 @@ class FrontendContractFilesTests(unittest.TestCase):
         self.assertIn("display", schema["$defs"]["record"]["required"])
         self.assertIn("previews", schema["$defs"]["display"]["properties"])
 
+    def test_dynamic_context_schema_is_valid_json_and_names_core_shapes(self) -> None:
+        schema_path = ROOT / "schemas" / "dynamic-context.schema.json"
+        schema = json.loads(schema_path.read_text(encoding="utf-8"))
+        self.assertEqual(
+            schema["$id"],
+            "https://codex.local/bioinformatics/schemas/dynamic-context.schema.json",
+        )
+        self.assertIn("context", schema["$defs"])
+        self.assertIn("contextSummary", schema["$defs"])
+        self.assertIn("recommendedCall", schema["$defs"])
+        self.assertIn("diagnostic", schema["$defs"])
+        self.assertIn("context_schema_version", schema["required"])
+        self.assertEqual(
+            schema["properties"]["context_schema_version"]["const"],
+            "bioinformatics.dynamic_context.v1",
+        )
+        self.assertIn("contexts", schema["required"])
+        self.assertIn("recommended_calls", schema["required"])
+
     def test_types_export_record_contract_helpers_and_known_components(self) -> None:
         types_path = ROOT / "types" / "record.ts"
         content = types_path.read_text(encoding="utf-8")
         for name in [
             "BioinformaticsRecord",
             "BioinformaticsResultEnvelope",
+            "BioinformaticsDynamicContextResult",
+            "BioinformaticsDynamicContext",
+            "BioinformaticsRecommendedCall",
             "BioinformaticsDisplaySection",
             "BioinformaticsPreview",
             "BioinformaticsPreviewKind",
             "getBioinformaticsRecords",
+            "getBioinformaticsDynamicContexts",
+            "getDynamicContextEntities",
+            "getDynamicContextRecommendedCalls",
+            "getDynamicContextPrimaryUrl",
             "getRecordPrimaryUrl",
             "isSafeExternalUrl",
         ]:
@@ -50,8 +76,11 @@ class FrontendContractFilesTests(unittest.TestCase):
         docs_path = ROOT / "docs" / "frontend-record-rendering.md"
         content = docs_path.read_text(encoding="utf-8")
         self.assertIn("schemas/record.schema.json", content)
+        self.assertIn("schemas/dynamic-context.schema.json", content)
         self.assertIn("types/record.ts", content)
         self.assertIn("structuredContent.records", content)
+        self.assertIn("structuredContent.contexts", content)
+        self.assertIn("recommended_calls", content)
         self.assertIn("display.primary_url", content)
         self.assertIn("display.sections", content)
         self.assertIn("display.previews", content)

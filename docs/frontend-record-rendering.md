@@ -5,9 +5,11 @@ should render bioinformatics MCP results. MCP tools own retrieval, normalization
 stable identifiers, provenance, and URL generation. The application owns visual
 rendering, hover behavior, routing, and opening external links.
 
-The machine-readable schema is `schemas/record.schema.json`. TypeScript
-consumers can use `types/record.ts`. Deterministic fixture records remain under
-`fixtures/frontend/ncbi/core-records.json` for app-side renderer tests.
+The machine-readable record schema is `schemas/record.schema.json`. Dynamic
+parameter-context responses use `schemas/dynamic-context.schema.json`.
+TypeScript consumers can use `types/record.ts`. Deterministic fixture records
+remain under `fixtures/frontend/ncbi/core-records.json` for app-side renderer
+tests.
 
 ## Payload Selection
 
@@ -17,11 +19,52 @@ consumers can use `types/record.ts`. Deterministic fixture records remain under
    bibliography-specific views.
 4. Preserve tool-specific fields such as `articles`, `datasets`, `genes`,
    `taxa`, `conversions`, and `linksets` for drill-down views.
-5. Treat `data` and `related` as expandable details, not as the primary display
+5. For dynamic parameter resolution tools where `operation` is
+   `resolve_context`, read `structuredContent.contexts` as candidate rows and
+   `structuredContent.entities` as compact first-pass cards.
+6. Treat `data` and `related` as expandable details, not as the primary display
    contract.
 
 MCP hosts should pass `tools/call.result.structuredContent` to renderers rather
 than parsing the fallback JSON string in `content[].text`.
+
+## Dynamic Context Display
+
+`*_resolve_context` tools return `context_schema_version:
+bioinformatics.dynamic_context.v1`. These responses are for selecting or
+confirming tool arguments before running a database fetch. They are not full
+record collections, but they use the same front-end ideas: stable labels, real
+URLs, hover payloads, actions, diagnostics, and provenance.
+
+Render a dynamic context result from:
+
+- `contexts[]`: all candidate argument rows. Each row usually includes
+  `parameter_name`, `value`, `label`, `description`, `url`, `metadata`, and a
+  lightweight `display` object.
+- `entities[]`: compact summaries for database-backed candidates. Prefer this
+  for the first visible card/list when present.
+- Legacy summary aliases such as `accessions`, `pathways`, `variants`,
+  `features`, `studies`, `profiles`, `sample_lists`, `clinical_attributes`,
+  `databases`, and `organisms`: compatibility fields for older consumers.
+- `recommended_calls[]`: suggested next MCP tool calls. Treat these as
+  user-confirmable call seeds, not commands to run automatically.
+- `diagnostics[]`: recoverable no-match, mismatch, or compatibility messages.
+  Render `severity`, `message`, and `suggested_action` when present.
+- `source`, `sources`, and `provenance`: API/documentation URLs used to resolve
+  the candidates.
+
+Render each `contexts[]` row like a compact record chip/card:
+
+- Use `context.display.hover` for hover cards when present.
+- Use `context.display.primary_url`, then `context.url`, then the first
+  `context.display.actions[].url` as the click target.
+- Open only `http://` and `https://` URLs.
+- Show `parameter_name` as the chip label and `value` as the copyable argument.
+- Preserve `metadata` for detail panes and filtering.
+
+Recommended calls should show the local tool name first. When `server` is
+present, label it as a cross-server suggestion. Front ends should let the user
+inspect and edit `arguments` before invoking the call.
 
 ## Record Display
 
@@ -371,6 +414,8 @@ be rendered as actionable environment gaps, not as fatal UI errors.
 ## Front-end Robustness Rules
 
 - Do not parse raw `content[].text` JSON when `structuredContent` is present.
+- For `resolve_context` responses, render `contexts[]` and `entities[]`; do not
+  require `records[]`.
 - Do not rely on database-specific `data` for the first-pass UI.
 - Do not assume every record has every optional field.
 - Preserve unknown fields for future detail panes.

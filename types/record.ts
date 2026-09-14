@@ -62,10 +62,88 @@ export interface BioinformaticsResultEnvelope {
   [key: string]: unknown;
 }
 
+export interface BioinformaticsDynamicContextResult {
+  schema_version: string;
+  context_schema_version: "bioinformatics.dynamic_context.v1" | (string & {});
+  database: string;
+  operation: "resolve_context";
+  query?: Record<string, unknown>;
+  returned: number;
+  total: number;
+  contexts: BioinformaticsDynamicContext[];
+  entities?: BioinformaticsDynamicContextSummary[];
+  recommended_calls?: BioinformaticsRecommendedCall[];
+  source?: BioinformaticsProvenance;
+  provenance?: BioinformaticsProvenance;
+  sources?: BioinformaticsProvenance[];
+  diagnostics?: BioinformaticsDiagnostic[];
+  raw?: unknown;
+  [key: string]: unknown;
+}
+
 export interface BioinformaticsProvenance {
   endpoint?: string;
   params?: Record<string, unknown>;
   retrieved_at?: string;
+  [key: string]: unknown;
+}
+
+export interface BioinformaticsDynamicContext {
+  kind?: string;
+  group?: string;
+  parameter_name: string;
+  value: unknown;
+  label: string;
+  title?: string;
+  description?: string;
+  url?: string;
+  source?: string;
+  metadata?: Record<string, unknown>;
+  display?: BioinformaticsDynamicContextDisplay;
+  [key: string]: unknown;
+}
+
+export interface BioinformaticsDynamicContextDisplay {
+  component?: BioinformaticsDisplayComponent;
+  chip_label?: string;
+  icon?: string;
+  title?: string;
+  subtitle?: string;
+  description?: string;
+  metadata?: BioinformaticsDisplayField[];
+  badges?: BioinformaticsBadge[];
+  actions?: BioinformaticsAction[];
+  hover?: BioinformaticsHover;
+  primary_url?: string;
+  [key: string]: unknown;
+}
+
+export interface BioinformaticsDynamicContextSummary {
+  parameter_name?: string;
+  value?: unknown;
+  label?: string;
+  kind?: string;
+  url?: string;
+  metadata?: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
+export interface BioinformaticsRecommendedCall {
+  server?: string;
+  tool_name: string;
+  arguments?: Record<string, unknown>;
+  reason?: string;
+  missing_arguments?: string[];
+  [key: string]: unknown;
+}
+
+export interface BioinformaticsDiagnostic {
+  code?: string;
+  severity?: "info" | "warning" | "error" | (string & {});
+  message: string;
+  recoverable?: boolean;
+  suggested_action?: string;
+  details?: Record<string, unknown>;
   [key: string]: unknown;
 }
 
@@ -212,6 +290,90 @@ export function getBioinformaticsRecords(
   return payload.records.filter(isBioinformaticsRecord);
 }
 
+export function isBioinformaticsDynamicContextResult(
+  payload: unknown,
+): payload is BioinformaticsDynamicContextResult {
+  return (
+    isObject(payload) &&
+    payload.context_schema_version === "bioinformatics.dynamic_context.v1" &&
+    payload.operation === "resolve_context" &&
+    Array.isArray(payload.contexts)
+  );
+}
+
+export function getBioinformaticsDynamicContexts(
+  payload: BioinformaticsDynamicContextResult | unknown,
+): BioinformaticsDynamicContext[] {
+  if (!isBioinformaticsDynamicContextResult(payload)) {
+    return [];
+  }
+  return payload.contexts.filter(isBioinformaticsDynamicContext);
+}
+
+export function getDynamicContextEntities(
+  payload: BioinformaticsDynamicContextResult | unknown,
+): BioinformaticsDynamicContextSummary[] {
+  if (!isObject(payload) || !Array.isArray(payload.entities)) {
+    return [];
+  }
+  return payload.entities.filter(isDynamicContextSummary);
+}
+
+export function getDynamicContextRecommendedCalls(
+  payload: BioinformaticsDynamicContextResult | unknown,
+): BioinformaticsRecommendedCall[] {
+  if (!isObject(payload) || !Array.isArray(payload.recommended_calls)) {
+    return [];
+  }
+  return payload.recommended_calls.filter(isRecommendedCall);
+}
+
+export function getDynamicContextPrimaryUrl(
+  context: BioinformaticsDynamicContext,
+): string | undefined {
+  const display = isObject(context.display) ? context.display : undefined;
+  if (display) {
+    const primaryUrl = cleanUrl(display.primary_url);
+    if (primaryUrl) {
+      return primaryUrl;
+    }
+  }
+  const contextUrl = cleanUrl(context.url);
+  if (contextUrl) {
+    return contextUrl;
+  }
+  const actions = Array.isArray(display?.actions) ? display.actions : [];
+  for (const action of actions) {
+    if (isObject(action)) {
+      const actionUrl = cleanUrl(action.url);
+      if (actionUrl) {
+        return actionUrl;
+      }
+    }
+  }
+  return undefined;
+}
+
+export function getDynamicContextHover(
+  context: BioinformaticsDynamicContext,
+): BioinformaticsHover {
+  const display = isObject(context.display) ? context.display : undefined;
+  const hover = isObject(display?.hover) ? display?.hover : undefined;
+  if (
+    hover &&
+    typeof hover.title === "string" &&
+    Array.isArray(hover.fields)
+  ) {
+    return hover as unknown as BioinformaticsHover;
+  }
+  return {
+    title: displayString(context.title ?? context.label ?? context.value ?? context.parameter_name),
+    subtitle: displayString(context.description),
+    icon: displayString(display?.icon ?? context.kind),
+    fields: [],
+  };
+}
+
 export function getRecordPrimaryUrl(
   record: BioinformaticsRecord,
 ): string | undefined {
@@ -257,8 +419,39 @@ function isBioinformaticsRecord(value: unknown): value is BioinformaticsRecord {
   );
 }
 
+function isBioinformaticsDynamicContext(
+  value: unknown,
+): value is BioinformaticsDynamicContext {
+  return (
+    isObject(value) &&
+    typeof value.parameter_name === "string" &&
+    "value" in value &&
+    typeof value.label === "string"
+  );
+}
+
+function isDynamicContextSummary(
+  value: unknown,
+): value is BioinformaticsDynamicContextSummary {
+  return isObject(value) && ("value" in value || "parameter_name" in value);
+}
+
+function isRecommendedCall(value: unknown): value is BioinformaticsRecommendedCall {
+  return isObject(value) && typeof value.tool_name === "string";
+}
+
 function cleanUrl(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+function displayString(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value);
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {

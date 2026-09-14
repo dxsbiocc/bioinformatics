@@ -1,0 +1,342 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://codex.local/bioinformatics/schemas/dynamic-context.schema.json",
+  "title": "Bioinformatics MCP dynamic context result",
+  "description": "Stable result envelope for MCP resolve_context tools that return UI-renderable parameter candidates, entity summaries, recommended calls, provenance, and diagnostics.",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Result envelope schema version for the server."
+    },
+    "context_schema_version": {
+      "type": "string",
+      "const": "bioinformatics.dynamic_context.v1"
+    },
+    "database": {
+      "type": "string"
+    },
+    "operation": {
+      "type": "string",
+      "const": "resolve_context"
+    },
+    "query": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "returned": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "total": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "contexts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/context"
+      }
+    },
+    "entities": {
+      "type": "array",
+      "description": "Compact entity candidates for first-pass rendering. Some tools also expose legacy aliases such as accessions, pathways, variants, studies, profiles, or databases.",
+      "items": {
+        "$ref": "#/$defs/contextSummary"
+      }
+    },
+    "recommended_calls": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/recommendedCall"
+      }
+    },
+    "source": {
+      "$ref": "#/$defs/provenance"
+    },
+    "provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/provenance"
+      }
+    },
+    "diagnostics": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/diagnostic"
+      }
+    },
+    "raw": {}
+  },
+  "required": [
+    "schema_version",
+    "context_schema_version",
+    "database",
+    "operation",
+    "returned",
+    "total",
+    "contexts",
+    "recommended_calls",
+    "source",
+    "sources"
+  ],
+  "$defs": {
+    "context": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "kind": {
+          "type": "string"
+        },
+        "group": {
+          "type": "string"
+        },
+        "parameter_name": {
+          "type": "string",
+          "description": "Tool argument name that this context value can fill."
+        },
+        "value": {
+          "description": "Candidate argument value. Render as a scalar when possible; preserve arrays or objects for detail panes."
+        },
+        "label": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string",
+          "description": "User-openable browser or API URL for the candidate."
+        },
+        "source": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "display": {
+          "$ref": "#/$defs/display"
+        }
+      },
+      "required": ["parameter_name", "value", "label"]
+    },
+    "contextSummary": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "parameter_name": {
+          "type": "string"
+        },
+        "value": {},
+        "label": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      }
+    },
+    "display": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "component": {
+          "type": "string"
+        },
+        "chip_label": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "metadata": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/displayField"
+          }
+        },
+        "badges": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/badge"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/link"
+          }
+        },
+        "hover": {
+          "$ref": "#/$defs/hover"
+        },
+        "primary_url": {
+          "type": "string"
+        }
+      }
+    },
+    "recommendedCall": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "server": {
+          "type": "string",
+          "description": "Optional MCP server name when the recommended call targets another server."
+        },
+        "tool_name": {
+          "type": "string"
+        },
+        "arguments": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "reason": {
+          "type": "string"
+        },
+        "missing_arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["tool_name"]
+    },
+    "diagnostic": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "code": {
+          "type": "string"
+        },
+        "severity": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "recoverable": {
+          "type": "boolean"
+        },
+        "suggested_action": {
+          "type": "string"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": ["message"]
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "endpoint": {
+          "type": "string"
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "url": {
+          "type": "string"
+        },
+        "retrieved_at": {
+          "type": "string"
+        }
+      }
+    },
+    "hover": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "title": {
+          "type": "string"
+        },
+        "subtitle": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/displayField"
+          }
+        }
+      },
+      "required": ["title", "fields"]
+    },
+    "displayField": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "value": {
+          "type": ["string", "number", "boolean"]
+        }
+      },
+      "required": ["label", "value"]
+    },
+    "badge": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": ["label", "kind"]
+    },
+    "link": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        },
+        "primary": {
+          "type": "boolean"
+        }
+      },
+      "required": ["label", "url"]
+    }
+  }
+}
