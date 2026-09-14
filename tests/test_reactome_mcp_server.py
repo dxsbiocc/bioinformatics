@@ -187,6 +187,8 @@ class ReactomeMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "reactome_parameter_domains",
+                "reactome_resolve_context",
                 "reactome_lookup",
                 "reactome_search",
                 "reactome_pathways_for_identifier",
@@ -258,6 +260,18 @@ class ReactomeMcpServerTests(unittest.TestCase):
             ("data/mapping/UniProt/P04637/pathways", {"species": "9606"}),
         )
         self.assertEqual(result["records"][0]["data"]["mapping"]["identifier"], "P04637")
+
+    def test_resolve_context_returns_pathway_candidates_and_calls(self) -> None:
+        result = self.call_tool(
+            "reactome_resolve_context",
+            {"query": "TP53", "species": "Homo sapiens", "max_results": 1},
+        )
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(result["returned"], 1)
+        self.assertEqual(result["pathways"][0]["value"], "R-HSA-5633007")
+        self.assertIn("reactome.org", result["pathways"][0]["url"])
+        self.assertEqual(result["recommended_calls"][0]["tool_name"], "reactome_lookup")
+        self.assertEqual(result["recommended_calls"][0]["arguments"]["stable_id"], "R-HSA-5633007")
 
     def test_status_reports_inventory_without_network_by_default(self) -> None:
         result = self.call_tool("reactome_status", {})

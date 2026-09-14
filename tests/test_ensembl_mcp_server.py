@@ -165,6 +165,8 @@ class EnsemblMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "ensembl_parameter_domains",
+                "ensembl_resolve_context",
                 "ensembl_lookup",
                 "ensembl_xrefs",
                 "ensembl_overlap_region",
@@ -204,6 +206,20 @@ class EnsemblMcpServerTests(unittest.TestCase):
         )
         self.assertEqual(result["returned"], 2)
         self.assertEqual(result["records"][0]["data"]["total"], 2)
+
+    def test_resolve_context_returns_stable_id_and_xref_calls(self) -> None:
+        result = self.call_tool(
+            "ensembl_resolve_context",
+            {"ensembl_id": "ENSG00000141510", "max_results": 5},
+        )
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(result["features"][0]["value"], "ENSG00000141510")
+        self.assertIn("ensembl", result["features"][0]["url"])
+        tool_names = {call["tool_name"] for call in result["recommended_calls"]}
+        self.assertIn("ensembl_lookup", tool_names)
+        self.assertIn("ensembl_xrefs", tool_names)
+        self.assertEqual(self.client.calls[0][0], "lookup/id/ENSG00000141510")
+        self.assertEqual(self.client.calls[1][0], "xrefs/id/ENSG00000141510")
 
     def test_overlap_region_returns_gene_and_variant_records(self) -> None:
         result = self.call_tool(

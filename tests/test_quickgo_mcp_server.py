@@ -143,6 +143,8 @@ class QuickGoMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "quickgo_parameter_domains",
+                "quickgo_resolve_context",
                 "quickgo_term_lookup",
                 "quickgo_term_search",
                 "quickgo_annotation_search",
@@ -200,6 +202,17 @@ class QuickGoMcpServerTests(unittest.TestCase):
         )
         self.assertEqual(result["records"][0]["data"]["parent_id"], "GO:0006915")
         self.assertEqual(result["records"][0]["data"]["relation"], "is_a")
+
+    def test_resolve_context_returns_term_candidates_and_calls(self) -> None:
+        result = self.call_tool(
+            "quickgo_resolve_context",
+            {"query": "apoptosis", "max_results": 2},
+        )
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(result["terms"][0]["value"], "GO:0097194")
+        self.assertIn("QuickGO/term/GO:0097194", result["terms"][0]["url"])
+        self.assertEqual(result["recommended_calls"][0]["tool_name"], "quickgo_term_lookup")
+        self.assertEqual(result["recommended_calls"][0]["arguments"]["go_id"], "GO:0097194")
 
     def test_status_reports_inventory_without_network_by_default(self) -> None:
         result = self.call_tool("quickgo_status", {})

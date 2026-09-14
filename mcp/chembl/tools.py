@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from mcp.dynamic_context import build_dynamic_context_response
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 import urllib.parse
 from typing import Callable
 
@@ -27,6 +29,21 @@ from .utils import (
 )
 
 
+CHEMBL_CONTEXT_TYPES = [
+    "all",
+    "molecules",
+    "targets",
+    "assays",
+    "documents",
+    "activity",
+    "mechanism",
+    "indication",
+    "standard_types",
+]
+CHEMBL_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"
+CHEMBL_STANDARD_TYPE_HINTS = ["IC50", "Ki", "Kd", "EC50", "AC50", "Potency"]
+
+
 def chembl_status(args: JsonObject, client: ChemblClient) -> JsonObject:
     check_network = optional_bool(args, "check_network", default=False)
     available_tools = [tool["name"] for tool in tool_definitions()]
@@ -42,6 +59,7 @@ def chembl_status(args: JsonObject, client: ChemblClient) -> JsonObject:
         "available_tools": available_tools,
         "available_databases": ["chembl"],
         "tool_groups": {
+            "context": ["chembl_parameter_domains", "chembl_resolve_context"],
             "compound": ["chembl_molecule_lookup", "chembl_molecule_search"],
             "target": ["chembl_target_lookup"],
             "assay": ["chembl_assay_lookup"],
@@ -68,6 +86,133 @@ def chembl_status(args: JsonObject, client: ChemblClient) -> JsonObject:
             "content_type": headers.get("content-type"),
         }
     return status
+
+
+def chembl_resolve_context(args: JsonObject, client: ChemblClient) -> JsonObject:
+    context_type = optional_context_type(args, "context_type", allowed=CHEMBL_CONTEXT_TYPES, default="all")
+    query = optional_text(args, "query")
+    molecule_chembl_id = optional_text(args, "molecule_chembl_id")
+    target_chembl_id = optional_text(args, "target_chembl_id")
+    assay_chembl_id = optional_text(args, "assay_chembl_id")
+    document_chembl_id = optional_text(args, "document_chembl_id")
+    standard_type = optional_text(args, "standard_type")
+    max_results = optional_int(args, "max_results", default=10, minimum=1, maximum=MAX_RESULTS)
+    include_raw = optional_bool(args, "include_raw", default=False)
+    contexts = static_chembl_contexts()
+    recommended_calls: list[JsonObject] = []
+    sources: list[JsonObject] = []
+    raw: JsonObject = {}
+
+    if query:
+        result = chembl_molecule_search({"query": query, "max_results": max_results, "include_raw": include_raw}, client)
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(chembl_record_context(record) for record in records)
+        for record in records[:3]:
+            recommended_calls.extend(chembl_recommended_calls(record))
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["molecule_search"] = result["raw"]
+
+    if molecule_chembl_id:
+        result = chembl_molecule_lookup({"molecule_chembl_id": molecule_chembl_id, "include_raw": include_raw}, client)
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(chembl_record_context(record) for record in records)
+        for record in records:
+            recommended_calls.extend(chembl_recommended_calls(record))
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["molecule_lookup"] = result["raw"]
+
+    if target_chembl_id:
+        result = chembl_target_lookup({"target_chembl_id": target_chembl_id, "include_raw": include_raw}, client)
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(chembl_record_context(record) for record in records)
+        for record in records:
+            recommended_calls.extend(chembl_recommended_calls(record))
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["target_lookup"] = result["raw"]
+
+    if assay_chembl_id:
+        result = chembl_assay_lookup({"assay_chembl_id": assay_chembl_id, "include_raw": include_raw}, client)
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(chembl_record_context(record) for record in records)
+        for record in records:
+            recommended_calls.extend(chembl_recommended_calls(record))
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["assay_lookup"] = result["raw"]
+
+    if document_chembl_id:
+        result = chembl_document_lookup({"document_chembl_id": document_chembl_id, "include_raw": include_raw}, client)
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(chembl_record_context(record) for record in records)
+        for record in records:
+            recommended_calls.extend(chembl_recommended_calls(record))
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["document_lookup"] = result["raw"]
+
+    if context_type == "activity" and (molecule_chembl_id or target_chembl_id):
+        result = chembl_activity_search(
+            {
+                "molecule_chembl_id": molecule_chembl_id or None,
+                "target_chembl_id": target_chembl_id or None,
+                "standard_type": standard_type or None,
+                "max_results": max_results,
+                "include_raw": include_raw,
+            },
+            client,
+        )
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(chembl_record_context(record, group="activity", parameter_name="activity_query") for record in records)
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["activity_search"] = result["raw"]
+
+    filtered_contexts = [
+        context
+        for context in contexts
+        if chembl_context_matches(
+            context,
+            context_type=context_type,
+            query=query or molecule_chembl_id or target_chembl_id or assay_chembl_id or document_chembl_id or standard_type,
+        )
+    ]
+    return build_dynamic_context_response(
+        schema_version=RESULT_SCHEMA_VERSION,
+        context_schema_version=CHEMBL_CONTEXT_SCHEMA_VERSION,
+        database="chembl",
+        query={
+            "context_type": context_type,
+            "query": query,
+            "molecule_chembl_id": molecule_chembl_id,
+            "target_chembl_id": target_chembl_id,
+            "assay_chembl_id": assay_chembl_id,
+            "document_chembl_id": document_chembl_id,
+            "standard_type": standard_type,
+        },
+        contexts=filtered_contexts,
+        recommended_calls=recommended_calls,
+        max_results=max_results,
+        fallback_source=source_info("resolve_context", {"context_type": context_type, "query": query}),
+        sources=sources,
+        entity_groups={"molecules", "targets", "assays", "documents"},
+        raw=raw,
+        include_raw=include_raw,
+    )
 
 
 def chembl_molecule_lookup(args: JsonObject, client: ChemblClient) -> JsonObject:
@@ -462,12 +607,257 @@ def source_with_headers(endpoint: str, params: JsonObject, headers: dict[str, st
     return source
 
 
+def optional_text(args: JsonObject, name: str) -> str:
+    value = args.get(name)
+    if value is None:
+        return ""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
+    if not isinstance(value, str):
+        raise McpError(-32602, f"{name} must be a string")
+    return value.strip()
+
+
+def optional_context_type(args: JsonObject, name: str, *, allowed: list[str], default: str) -> str:
+    value = optional_string(args, name, default=default)
+    if value not in allowed:
+        raise McpError(-32602, f"{name} must be one of: {', '.join(allowed)}")
+    return value
+
+
+def static_chembl_contexts() -> list[JsonObject]:
+    contexts: list[JsonObject] = [
+        chembl_parameter_context(
+            "context_type",
+            value,
+            label=value,
+            description="Dynamic ChEMBL context family to resolve before molecule, target, assay, document, or activity calls.",
+            kind="enum",
+            group="context_types",
+            url="",
+            metadata={"context_type": value},
+        )
+        for value in CHEMBL_CONTEXT_TYPES
+    ]
+    contexts.extend(
+        chembl_parameter_context(
+            "standard_type",
+            value,
+            label=value,
+            description="Common ChEMBL activity standard_type filter.",
+            kind="activity_type",
+            group="standard_types",
+            url="",
+            metadata={"standard_type": value, "tool_hint": "chembl_activity_search"},
+        )
+        for value in CHEMBL_STANDARD_TYPE_HINTS
+    )
+    return contexts
+
+
+def chembl_record_context(record: JsonObject, *, group: str = "", parameter_name: str = "") -> JsonObject:
+    data = record.get("data") if isinstance(record.get("data"), dict) else {}
+    record_type = normalize_space(record.get("record_type"))
+    if not group or not parameter_name:
+        parameter_name, group = chembl_record_parameter(record_type)
+    value = normalize_space(data.get(parameter_name) or record.get("id"))
+    label = normalize_space(record.get("title") or record.get("label") or value)
+    return chembl_parameter_context(
+        parameter_name,
+        value,
+        label=label,
+        description=normalize_space(record.get("description") or label),
+        kind=record_type or group.rstrip("s"),
+        group=group,
+        url=normalize_space(record.get("url") or data.get("url")),
+        metadata=chembl_context_metadata(record_type, data),
+    )
+
+
+def chembl_record_parameter(record_type: str) -> tuple[str, str]:
+    if record_type == "chembl_target":
+        return "target_chembl_id", "targets"
+    if record_type == "chembl_assay":
+        return "assay_chembl_id", "assays"
+    if record_type == "chembl_document":
+        return "document_chembl_id", "documents"
+    if record_type == "chembl_activity_search":
+        return "activity_query", "activity"
+    if record_type == "chembl_mechanism_search":
+        return "mechanism_query", "mechanism"
+    if record_type == "chembl_drug_indications":
+        return "molecule_chembl_id", "indication"
+    return "molecule_chembl_id", "molecules"
+
+
+def chembl_context_metadata(record_type: str, data: JsonObject) -> JsonObject:
+    if record_type == "chembl_target":
+        return {
+            "target_chembl_id": data.get("target_chembl_id", ""),
+            "pref_name": data.get("pref_name", ""),
+            "target_type": data.get("target_type", ""),
+            "organism": data.get("organism", ""),
+            "tax_id": data.get("tax_id", ""),
+            "components": len(data.get("components", [])) if isinstance(data.get("components"), list) else 0,
+        }
+    if record_type == "chembl_assay":
+        return {
+            "assay_chembl_id": data.get("assay_chembl_id", ""),
+            "assay_type": data.get("assay_type", ""),
+            "target_chembl_id": data.get("target_chembl_id", ""),
+            "document_chembl_id": data.get("document_chembl_id", ""),
+            "confidence_score": data.get("confidence_score", ""),
+        }
+    if record_type == "chembl_document":
+        return {
+            "document_chembl_id": data.get("document_chembl_id", ""),
+            "journal": data.get("journal", ""),
+            "year": data.get("year", ""),
+            "pubmed_id": data.get("pubmed_id", ""),
+            "doi": data.get("doi", ""),
+        }
+    return {
+        "molecule_chembl_id": data.get("molecule_chembl_id", ""),
+        "pref_name": data.get("pref_name", ""),
+        "molecule_type": data.get("molecule_type", ""),
+        "max_phase": data.get("max_phase", ""),
+        "canonical_smiles": data.get("canonical_smiles", ""),
+        "standard_inchi_key": data.get("standard_inchi_key", ""),
+    }
+
+
+def chembl_parameter_context(
+    parameter_name: str,
+    value: object,
+    *,
+    label: str,
+    description: str,
+    kind: str,
+    group: str,
+    url: str,
+    metadata: JsonObject,
+) -> JsonObject:
+    display_fields = [
+        {"label": key.replace("_", " ").title(), "value": item}
+        for key, item in metadata.items()
+        if item not in ("", None, [], {})
+    ]
+    if url:
+        display_fields.append({"label": "URL", "value": url})
+    component = "compound" if group == "molecules" else "protein" if group == "targets" else "citation" if group == "documents" else "dataset"
+    return {
+        "kind": kind,
+        "group": group,
+        "parameter_name": parameter_name,
+        "value": value,
+        "label": label,
+        "title": label,
+        "description": description,
+        "url": url,
+        "metadata": metadata,
+        "display": {
+            "component": component,
+            "chip_label": parameter_name,
+            "icon": "chembl",
+            "title": label,
+            "subtitle": f"{parameter_name}: {value}",
+            "description": description,
+            "metadata": display_fields,
+            "badges": [
+                {"label": "ChEMBL", "kind": "source"},
+                {"label": parameter_name, "kind": "parameter"},
+            ],
+            "actions": [{"label": "Open source", "url": url, "kind": "external", "primary": True}] if url else [],
+            "hover": {"title": label, "subtitle": f"{parameter_name}: {value}", "icon": "chembl", "fields": display_fields},
+            "primary_url": url,
+        },
+    }
+
+
+def chembl_recommended_calls(record: JsonObject) -> list[JsonObject]:
+    data = record.get("data") if isinstance(record.get("data"), dict) else {}
+    record_type = normalize_space(record.get("record_type"))
+    if record_type == "chembl_target":
+        target_id = normalize_space(data.get("target_chembl_id"))
+        calls: list[JsonObject] = [
+            {"tool_name": "chembl_target_lookup", "arguments": {"target_chembl_id": target_id}, "reason": "Fetch detailed ChEMBL target metadata and UniProt component cross-references."},
+            {"tool_name": "chembl_activity_search", "arguments": {"target_chembl_id": target_id}, "reason": "Fetch activity measurements for this ChEMBL target."},
+            {"tool_name": "chembl_mechanism_search", "arguments": {"target_chembl_id": target_id}, "reason": "Fetch mechanism-of-action rows for this target."},
+        ]
+        components = data.get("components")
+        if isinstance(components, list):
+            for component in components[:3]:
+                if isinstance(component, dict) and component.get("accession"):
+                    calls.append({"server": "uniprot", "tool_name": "uniprot_lookup", "arguments": {"accession": component["accession"]}, "reason": "Open the UniProt accession for this ChEMBL target component."})
+        return calls
+    if record_type == "chembl_assay":
+        assay_id = normalize_space(data.get("assay_chembl_id"))
+        return [{"tool_name": "chembl_assay_lookup", "arguments": {"assay_chembl_id": assay_id}, "reason": "Fetch assay metadata, target/document links, and confidence information."}]
+    if record_type == "chembl_document":
+        document_id = normalize_space(data.get("document_chembl_id"))
+        calls = [{"tool_name": "chembl_document_lookup", "arguments": {"document_chembl_id": document_id}, "reason": "Fetch source-document metadata and publication identifiers."}]
+        if data.get("pubmed_id"):
+            calls.append({"server": "ncbi", "tool_name": "pubmed_articles", "arguments": {"ids": [str(data["pubmed_id"])]}, "reason": "Open PubMed metadata for this ChEMBL document."})
+        return calls
+    molecule_id = normalize_space(data.get("molecule_chembl_id"))
+    return [
+        {"tool_name": "chembl_molecule_lookup", "arguments": {"molecule_chembl_id": molecule_id}, "reason": "Fetch detailed ChEMBL molecule metadata and chemical structure previews."},
+        {"tool_name": "chembl_activity_search", "arguments": {"molecule_chembl_id": molecule_id}, "reason": "Fetch activity measurements for this ChEMBL molecule."},
+        {"tool_name": "chembl_mechanism_search", "arguments": {"molecule_chembl_id": molecule_id}, "reason": "Fetch mechanism-of-action rows for this molecule."},
+        {"tool_name": "chembl_drug_indications", "arguments": {"molecule_chembl_id": molecule_id}, "reason": "Fetch disease indications and evidence links for this molecule."},
+    ]
+
+
+def chembl_context_matches(context: JsonObject, *, context_type: str, query: str) -> bool:
+    if context_type != "all" and context.get("group") != context_type:
+        return False
+    if not query:
+        return True
+    metadata = context.get("metadata")
+    haystack_values = [
+        context.get("parameter_name"),
+        context.get("value"),
+        context.get("label"),
+        context.get("description"),
+        context.get("kind"),
+    ]
+    if isinstance(metadata, dict):
+        haystack_values.extend(metadata.values())
+    haystack = " ".join(str(item).lower() for item in haystack_values if item not in ("", None))
+    return query.lower() in haystack or context.get("group") in {"molecules", "targets", "assays", "documents", "activity"}
+
+
 def tool_definitions() -> list[JsonObject]:
     read_only_annotations = {
         "readOnlyHint": True,
         "openWorldHint": True,
     }
     return [
+        parameter_domains_tool_definition("chembl_parameter_domains"),
+        {
+            "name": "chembl_resolve_context",
+            "title": "Resolve ChEMBL dynamic parameter context",
+            "description": (
+                "Resolve ChEMBL molecule, target, assay, document, and activity filter context before calling ChEMBL tools. "
+                "Returns app-renderable context rows, real ChEMBL URLs, and recommended follow-up calls."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "context_type": {"type": "string", "enum": CHEMBL_CONTEXT_TYPES, "default": "all"},
+                    "query": {"type": "string", "description": "Optional molecule text search such as imatinib."},
+                    "molecule_chembl_id": {"type": "string", "description": "Optional molecule ID such as CHEMBL25."},
+                    "target_chembl_id": {"type": "string", "description": "Optional target ID such as CHEMBL1824."},
+                    "assay_chembl_id": {"type": "string", "description": "Optional assay ID such as CHEMBL1217643."},
+                    "document_chembl_id": {"type": "string", "description": "Optional document ID such as CHEMBL1212834."},
+                    "standard_type": {"type": "string", "description": "Optional activity type such as IC50."},
+                    "max_results": {"type": "integer", "minimum": 1, "maximum": MAX_RESULTS, "default": 10},
+                    "include_raw": {"type": "boolean", "default": False},
+                },
+                "additionalProperties": False,
+            },
+            "annotations": read_only_annotations,
+        },
         {
             "name": "chembl_molecule_lookup",
             "title": "Look up a ChEMBL compound",
@@ -675,6 +1065,8 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS: dict[str, Callable[[JsonObject, ChemblClient], JsonObject]] = {
+    "chembl_parameter_domains": make_parameter_domains_handler("chembl", "chembl_parameter_domains", tool_definitions),
+    "chembl_resolve_context": chembl_resolve_context,
     "chembl_molecule_lookup": chembl_molecule_lookup,
     "chembl_molecule_search": chembl_molecule_search,
     "chembl_target_lookup": chembl_target_lookup,

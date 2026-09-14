@@ -140,7 +140,7 @@ class ClinvarMcpServerTests(unittest.TestCase):
         )
         assert response is not None
         names = {tool["name"] for tool in response["result"]["tools"]}
-        self.assertEqual(names, {"clinvar_lookup", "clinvar_search", "clinvar_status"})
+        self.assertEqual(names, {"clinvar_parameter_domains", "clinvar_resolve_context", "clinvar_lookup", "clinvar_search", "clinvar_status"})
 
     def test_lookup_returns_frontend_compatible_variant_record(self) -> None:
         result = self.call_tool("clinvar_lookup", {"identifier": "VCV000037390"})
@@ -174,6 +174,17 @@ class ClinvarMcpServerTests(unittest.TestCase):
         self.assertEqual(self.client.calls[0][0], "clinical_tables")
         self.assertEqual(self.client.calls[1][2]["id"], "37390,4887763")
         self.assertEqual(result["records"][1]["data"]["classification"], "Pathogenic")
+
+    def test_resolve_context_returns_variant_candidates_and_calls(self) -> None:
+        result = self.call_tool(
+            "clinvar_resolve_context",
+            {"query": "BRCA1", "max_results": 2},
+        )
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(result["variants"][0]["metadata"]["uid"], "37390")
+        self.assertIn("clinvar/variation/37390", result["variants"][0]["url"])
+        self.assertEqual(result["recommended_calls"][0]["tool_name"], "clinvar_lookup")
+        self.assertEqual(result["recommended_calls"][0]["arguments"]["identifier"], "VCV000037390.4")
 
     def test_status_reports_inventory_without_network_by_default(self) -> None:
         result = self.call_tool("clinvar_status", {})

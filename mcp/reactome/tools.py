@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from mcp.dynamic_context import build_dynamic_context_response
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 from typing import Callable
 
 from .client import ReactomeClient
@@ -14,7 +16,7 @@ from .constants import (
     RESULT_SCHEMA_VERSION,
     JsonObject,
 )
-from .errors import ReactomeError
+from .errors import McpError, ReactomeError
 from .records import reactome_pathway_record
 from .utils import (
     clean_html,
@@ -26,6 +28,17 @@ from .utils import (
     require_stable_id,
     source_info,
 )
+
+
+REACTOME_CONTEXT_TYPES = ["all", "search", "pathway", "identifier", "species", "resources"]
+REACTOME_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"
+REACTOME_MAPPING_RESOURCES = ["UniProt", "Ensembl", "ChEBI", "miRBase"]
+REACTOME_SPECIES_HINTS = [
+    ("9606", "Homo sapiens"),
+    ("10090", "Mus musculus"),
+    ("10116", "Rattus norvegicus"),
+    ("7227", "Drosophila melanogaster"),
+]
 
 
 def reactome_status(args: JsonObject, client: ReactomeClient) -> JsonObject:
@@ -43,6 +56,7 @@ def reactome_status(args: JsonObject, client: ReactomeClient) -> JsonObject:
         "available_tools": available_tools,
         "available_databases": ["reactome"],
         "tool_groups": {
+            "context": ["reactome_parameter_domains", "reactome_resolve_context"],
             "pathway": [
                 "reactome_lookup",
                 "reactome_search",
@@ -64,6 +78,108 @@ def reactome_status(args: JsonObject, client: ReactomeClient) -> JsonObject:
             "display_name": clean_html(event.get("displayName")),
         }
     return status
+
+
+def reactome_resolve_context(args: JsonObject, client: ReactomeClient) -> JsonObject:
+    context_type = optional_context_type(args, "context_type", allowed=REACTOME_CONTEXT_TYPES, default="all")
+    query = optional_string(args, "query", default="")
+    stable_id = optional_string(args, "stable_id", default="")
+    identifier = optional_string(args, "identifier", default="")
+    resource = optional_string(args, "resource", default="UniProt")
+    species = optional_string(args, "species", default="9606")
+    max_results = optional_int(args, "max_results", default=10, minimum=1, maximum=MAX_SEARCH_RESULTS)
+    include_raw = optional_bool(args, "include_raw", default=False)
+    contexts = static_reactome_contexts()
+    recommended_calls: list[JsonObject] = []
+    sources: list[JsonObject] = []
+    raw: JsonObject = {}
+
+    if stable_id:
+        result = reactome_lookup(
+            {
+                "stable_id": stable_id,
+                "include_participants": False,
+                "max_participants": 0,
+                "include_raw": include_raw,
+            },
+            client,
+        )
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(reactome_record_context(record) for record in records)
+        recommended_calls.extend(reactome_recommended_calls(record) for record in records)
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["lookup"] = result["raw"]
+
+    if query:
+        result = reactome_search(
+            {
+                "query": query,
+                "species": species if not species.isdigit() else "Homo sapiens",
+                "types": "Pathway",
+                "max_results": max_results,
+                "include_raw": include_raw,
+            },
+            client,
+        )
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(reactome_record_context(record) for record in records)
+        recommended_calls.extend(reactome_recommended_calls(record) for record in records[:3])
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["search"] = result["raw"]
+
+    if identifier:
+        result = reactome_pathways_for_identifier(
+            {
+                "identifier": identifier,
+                "resource": resource,
+                "species": species,
+                "max_results": max_results,
+                "include_raw": include_raw,
+            },
+            client,
+        )
+        records = [record for record in result.get("records", []) if isinstance(record, dict)]
+        contexts.extend(reactome_record_context(record, parameter_name="stable_id", kind="mapped_pathway") for record in records)
+        recommended_calls.extend(reactome_recommended_calls(record) for record in records[:3])
+        source = result.get("source")
+        if isinstance(source, dict):
+            sources.append(source)
+        if include_raw and "raw" in result:
+            raw["mapping"] = result["raw"]
+
+    filtered_contexts = [
+        context
+        for context in contexts
+        if reactome_context_matches(context, context_type=context_type, query=query or stable_id or identifier)
+    ]
+    return build_dynamic_context_response(
+        schema_version=RESULT_SCHEMA_VERSION,
+        context_schema_version=REACTOME_CONTEXT_SCHEMA_VERSION,
+        database="reactome",
+        query={
+            "context_type": context_type,
+            "query": query,
+            "stable_id": stable_id,
+            "identifier": identifier,
+            "resource": resource,
+            "species": species,
+        },
+        contexts=filtered_contexts,
+        recommended_calls=recommended_calls,
+        max_results=max_results,
+        fallback_source=source_info("resolve_context", {"context_type": context_type, "query": query, "stable_id": stable_id, "identifier": identifier}),
+        sources=sources,
+        entity_groups={"pathway"},
+        raw=raw,
+        summary_fields={"pathways": lambda context: context.get("group") == "pathway"},
+        include_raw=include_raw,
+    )
 
 
 def reactome_lookup(args: JsonObject, client: ReactomeClient) -> JsonObject:
@@ -273,12 +389,185 @@ def source_with_headers(
     return source
 
 
+def optional_context_type(args: JsonObject, name: str, *, allowed: list[str], default: str) -> str:
+    value = optional_string(args, name, default=default)
+    if value not in allowed:
+        raise McpError(-32602, f"{name} must be one of: {', '.join(allowed)}")
+    return value
+
+
+def static_reactome_contexts() -> list[JsonObject]:
+    contexts: list[JsonObject] = [
+        reactome_parameter_context(
+            "context_type",
+            value,
+            label=value,
+            description="Dynamic Reactome context family to resolve before pathway lookup, search, or identifier mapping.",
+            kind="enum",
+            group="search",
+            url="",
+            metadata={"context_type": value},
+        )
+        for value in REACTOME_CONTEXT_TYPES
+    ]
+    contexts.extend(
+        reactome_parameter_context(
+            "resource",
+            resource,
+            label=resource,
+            description="Reactome identifier-mapping resource accepted by reactome_pathways_for_identifier.",
+            kind="mapping_resource",
+            group="resources",
+            url="https://reactome.org/ContentService/",
+            metadata={"tool_hint": "reactome_pathways_for_identifier"},
+        )
+        for resource in REACTOME_MAPPING_RESOURCES
+    )
+    contexts.extend(
+        reactome_parameter_context(
+            "species",
+            taxid,
+            label=name,
+            description="Common Reactome species filter for identifier-to-pathway mapping.",
+            kind="species",
+            group="species",
+            url=f"https://reactome.org/content/query?q={taxid}",
+            metadata={"taxon_id": taxid, "scientific_name": name},
+        )
+        for taxid, name in REACTOME_SPECIES_HINTS
+    )
+    return contexts
+
+
+def reactome_record_context(record: JsonObject, *, parameter_name: str = "stable_id", kind: str = "pathway") -> JsonObject:
+    data = record.get("data") if isinstance(record.get("data"), dict) else {}
+    stable_id = normalize_space(data.get("stable_id") or record.get("id"))
+    title = normalize_space(record.get("title") or data.get("display_name") or stable_id)
+    return reactome_parameter_context(
+        parameter_name,
+        stable_id,
+        label=title,
+        description=normalize_space(record.get("description") or data.get("summary") or "Reactome pathway/event."),
+        kind=kind,
+        group="pathway",
+        url=normalize_space(record.get("url") or data.get("url")),
+        metadata={
+            "stable_id": stable_id,
+            "db_id": data.get("db_id", ""),
+            "schema_class": data.get("schema_class", ""),
+            "species_name": data.get("species_name", ""),
+            "participant_count": data.get("participant_count", 0),
+            "reference_count": data.get("reference_count", 0),
+        },
+    )
+
+
+def reactome_parameter_context(
+    parameter_name: str,
+    value: object,
+    *,
+    label: str,
+    description: str,
+    kind: str,
+    group: str,
+    url: str,
+    metadata: JsonObject,
+) -> JsonObject:
+    display_fields = [
+        {"label": key.replace("_", " ").title(), "value": item}
+        for key, item in metadata.items()
+        if item not in ("", None, [], {})
+    ]
+    if url:
+        display_fields.append({"label": "URL", "value": url})
+    return {
+        "kind": kind,
+        "group": group,
+        "parameter_name": parameter_name,
+        "value": value,
+        "label": label,
+        "title": label,
+        "description": description,
+        "url": url,
+        "metadata": metadata,
+        "display": {
+            "component": "pathway",
+            "chip_label": parameter_name,
+            "icon": "reactome",
+            "title": label,
+            "subtitle": f"{parameter_name}: {value}",
+            "description": description,
+            "metadata": display_fields,
+            "badges": [
+                {"label": "Reactome", "kind": "source"},
+                {"label": parameter_name, "kind": "parameter"},
+            ],
+            "actions": [{"label": "Open source", "url": url, "kind": "external", "primary": True}] if url else [],
+            "hover": {"title": label, "subtitle": f"{parameter_name}: {value}", "icon": "reactome", "fields": display_fields},
+            "primary_url": url,
+        },
+    }
+
+
+def reactome_recommended_calls(record: JsonObject) -> JsonObject:
+    data = record.get("data") if isinstance(record.get("data"), dict) else {}
+    stable_id = normalize_space(data.get("stable_id") or record.get("id"))
+    return {
+        "tool_name": "reactome_lookup",
+        "arguments": {"stable_id": stable_id},
+        "reason": "Fetch detailed Reactome pathway metadata, participant previews, and literature references.",
+    }
+
+
+def reactome_context_matches(context: JsonObject, *, context_type: str, query: str) -> bool:
+    if context_type != "all" and context.get("group") != context_type:
+        return False
+    if not query:
+        return True
+    metadata = context.get("metadata")
+    haystack_values = [
+        context.get("parameter_name"),
+        context.get("value"),
+        context.get("label"),
+        context.get("description"),
+        context.get("kind"),
+    ]
+    if isinstance(metadata, dict):
+        haystack_values.extend(metadata.values())
+    haystack = " ".join(str(item).lower() for item in haystack_values if item not in ("", None))
+    return query.lower() in haystack or context.get("group") == "pathway"
+
+
 def tool_definitions() -> list[JsonObject]:
     read_only_annotations = {
         "readOnlyHint": True,
         "openWorldHint": True,
     }
     return [
+        parameter_domains_tool_definition("reactome_parameter_domains"),
+        {
+            "name": "reactome_resolve_context",
+            "title": "Resolve Reactome dynamic parameter context",
+            "description": (
+                "Resolve Reactome pathway IDs, search hits, species/resource hints, and identifier-to-pathway mappings "
+                "before calling lookup or pathway mapping tools. Returns front-end-friendly context rows and recommended calls."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "context_type": {"type": "string", "enum": REACTOME_CONTEXT_TYPES, "default": "all"},
+                    "query": {"type": "string", "description": "Optional pathway text search such as TP53 or apoptosis."},
+                    "stable_id": {"type": "string", "description": "Optional Reactome stable ID such as R-HSA-5633007."},
+                    "identifier": {"type": "string", "description": "Optional external identifier such as UniProt accession P04637."},
+                    "resource": {"type": "string", "description": "Reactome mapping resource such as UniProt, Ensembl, or ChEBI.", "default": "UniProt"},
+                    "species": {"type": "string", "description": "Species filter such as 9606.", "default": "9606"},
+                    "max_results": {"type": "integer", "minimum": 1, "maximum": MAX_SEARCH_RESULTS, "default": 10},
+                    "include_raw": {"type": "boolean", "default": False},
+                },
+                "additionalProperties": False,
+            },
+            "annotations": read_only_annotations,
+        },
         {
             "name": "reactome_lookup",
             "title": "Look up a Reactome pathway or event",
@@ -412,9 +701,10 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS: dict[str, Callable[[JsonObject, ReactomeClient], JsonObject]] = {
+    "reactome_parameter_domains": make_parameter_domains_handler("reactome", "reactome_parameter_domains", tool_definitions),
+    "reactome_resolve_context": reactome_resolve_context,
     "reactome_lookup": reactome_lookup,
     "reactome_search": reactome_search,
     "reactome_pathways_for_identifier": reactome_pathways_for_identifier,
     "reactome_status": reactome_status,
 }
-

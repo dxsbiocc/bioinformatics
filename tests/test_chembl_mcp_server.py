@@ -295,6 +295,8 @@ class ChemblMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "chembl_parameter_domains",
+                "chembl_resolve_context",
                 "chembl_molecule_lookup",
                 "chembl_molecule_search",
                 "chembl_target_lookup",
@@ -330,6 +332,19 @@ class ChemblMcpServerTests(unittest.TestCase):
         )
         self.assertEqual(result["total"], 2)
         self.assertEqual(result["records"][0]["data"]["molecule_chembl_id"], "CHEMBL941")
+
+    def test_resolve_context_returns_molecule_candidates_and_calls(self) -> None:
+        result = self.call_tool(
+            "chembl_resolve_context",
+            {"query": "imatinib", "max_results": 8},
+        )
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        self.assertEqual(result["entities"][0]["value"], "CHEMBL941")
+        self.assertIn("chembl", result["entities"][0]["url"])
+        tool_names = {call["tool_name"] for call in result["recommended_calls"]}
+        self.assertIn("chembl_molecule_lookup", tool_names)
+        self.assertIn("chembl_activity_search", tool_names)
+        self.assertIn("chembl_drug_indications", tool_names)
 
     def test_target_lookup_returns_frontend_compatible_protein_record(self) -> None:
         result = self.call_tool("chembl_target_lookup", {"target_chembl_id": "CHEMBL1824"})
