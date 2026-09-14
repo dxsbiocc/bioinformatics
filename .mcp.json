@@ -351,6 +351,20 @@
         "CBIOPORTAL_TOOL"
       ]
     },
+    "kegg": {
+      "command": "python3",
+      "args": [
+        "./mcp/kegg/server.py"
+      ],
+      "cwd": ".",
+      "env_vars": [
+        "KEGG_REST_BASE_URL",
+        "KEGG_WEBSITE_BASE_URL",
+        "KEGG_CONTACT",
+        "KEGG_TOOL",
+        "KEGG_REQUESTS_PER_SECOND"
+      ]
+    },
     "visualization": {
       "command": "python3",
       "args": [

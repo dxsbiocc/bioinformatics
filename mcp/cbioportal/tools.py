@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from mcp.dynamic_context import build_dynamic_context_response
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 from .client import CbioPortalClient
 from .constants import (
     DEFAULT_CLINICAL_IDS,
@@ -33,6 +35,8 @@ from .records import (
 
 
 CNA_EVENT_TYPES = {"HOMDEL_AND_AMP", "HOMDEL", "AMP", "GAIN", "HETLOSS", "DIPLOID", "ALL"}
+CBIOPORTAL_CONTEXT_TYPES = ["all", "studies", "study", "profiles", "sample_lists", "clinical_attributes", "fetch_context"]
+CBIOPORTAL_CONTEXT_SCHEMA_VERSION = "bioinformatics.dynamic_context.v1"
 from .utils import (
     optional_clinical_data_type,
     optional_bool,
@@ -64,6 +68,7 @@ def cbioportal_status(args: JsonObject, client: CbioPortalClient) -> JsonObject:
         "available_tools": available_tools,
         "available_databases": ["cbioportal"],
         "tool_groups": {
+            "context": ["cbioportal_parameter_domains", "cbioportal_resolve_context"],
             "studies": ["cbioportal_study_search", "cbioportal_study_lookup"],
             "profiles": ["cbioportal_molecular_profiles"],
             "samples": ["cbioportal_sample_lists"],
@@ -86,6 +91,157 @@ def cbioportal_status(args: JsonObject, client: CbioPortalClient) -> JsonObject:
             "content_type": headers.get("content-type"),
         }
     return status
+
+
+def cbioportal_resolve_context(args: JsonObject, client: CbioPortalClient) -> JsonObject:
+    context_type = optional_context_type(args, "context_type", allowed=CBIOPORTAL_CONTEXT_TYPES, default="all")
+    query = optional_string(args, "query")
+    study_id = optional_string(args, "study_id")
+    molecular_profile_id = optional_string(args, "molecular_profile_id")
+    sample_list_id = optional_string(args, "sample_list_id")
+    max_results = optional_int(args, "max_results", default=DEFAULT_RESULTS, minimum=1, maximum=MAX_RESULTS)
+    include_raw = optional_bool(args, "include_raw", default=False)
+    if study_id:
+        study_id = require_study_id({"study_id": study_id})
+    if molecular_profile_id:
+        molecular_profile_id = require_profile_id({"molecular_profile_id": molecular_profile_id})
+    if sample_list_id:
+        sample_list_id = require_sample_list_id({"sample_list_id": sample_list_id})
+
+    contexts: list[JsonObject] = []
+    sources: list[JsonObject] = []
+    diagnostics: list[JsonObject] = []
+    raw: JsonObject = {}
+    study: JsonObject = {}
+    profiles: list[JsonObject] = []
+    sample_lists: list[JsonObject] = []
+    clinical_attributes: list[JsonObject] = []
+    profile: JsonObject = {}
+    sample_list: JsonObject = {}
+
+    if context_type == "all" or not any([query, study_id, molecular_profile_id, sample_list_id]):
+        contexts.extend(static_cbioportal_contexts(client))
+
+    if query and not study_id and context_type in {"all", "studies", "study"}:
+        endpoint = "studies"
+        params: JsonObject = {"keyword": query, "projection": "SUMMARY", "pageSize": max_results}
+        payload, headers = client.request_json_with_headers(endpoint, params)
+        rows = list_payload(payload)[:max_results]
+        raw["study_search"] = payload
+        sources.append(source_with_headers(endpoint, params, headers, client.build_url(endpoint, params)))
+        for row in rows:
+            contexts.append(cbioportal_study_context(row, client))
+
+    if study_id:
+        if context_type in {"all", "study", "fetch_context"}:
+            endpoint = f"studies/{study_id}"
+            params = {"projection": "DETAILED"}
+            payload, headers = client.request_json_with_headers(endpoint, params)
+            study = ensure_object(payload, study_id)
+            raw["study"] = payload
+            sources.append(source_with_headers(endpoint, params, headers, client.build_url(endpoint, params)))
+            contexts.append(cbioportal_study_context(study, client))
+        if context_type in {"all", "profiles", "fetch_context"}:
+            endpoint = f"studies/{study_id}/molecular-profiles"
+            params = {"projection": "SUMMARY"}
+            payload, headers = client.request_json_with_headers(endpoint, params)
+            profiles = list_payload(payload)
+            raw["profiles"] = payload
+            sources.append(source_with_headers(endpoint, params, headers, client.build_url(endpoint, params)))
+            contexts.extend(cbioportal_profile_context(row, client) for row in profiles[:max_results])
+        if context_type in {"all", "sample_lists", "fetch_context"}:
+            endpoint = f"studies/{study_id}/sample-lists"
+            params = {"projection": "SUMMARY"}
+            payload, headers = client.request_json_with_headers(endpoint, params)
+            sample_lists = list_payload(payload)
+            raw["sample_lists"] = payload
+            sources.append(source_with_headers(endpoint, params, headers, client.build_url(endpoint, params)))
+            contexts.extend(cbioportal_sample_list_context(row, client) for row in sample_lists[:max_results])
+        if context_type in {"all", "clinical_attributes", "fetch_context"}:
+            endpoint = f"studies/{study_id}/clinical-attributes"
+            params = {"projection": "SUMMARY", "pageSize": max_results}
+            payload, headers = client.request_json_with_headers(endpoint, params)
+            clinical_attributes = list_payload(payload)
+            raw["clinical_attributes"] = payload
+            sources.append(source_with_headers(endpoint, params, headers, client.build_url(endpoint, params)))
+            contexts.extend(cbioportal_clinical_attribute_context(study_id, row, client) for row in clinical_attributes[:max_results])
+
+    if molecular_profile_id:
+        profile = first_matching_profile(profiles, molecular_profile_id)
+        if not profile:
+            detail = read_optional_cbioportal_record(client, f"molecular-profiles/{molecular_profile_id}", molecular_profile_id, "molecular_profile")
+            sources.extend(detail["sources"])
+            diagnostics.extend(detail["diagnostics"])
+            profile = detail["record"]
+            if profile:
+                raw["molecular_profile"] = profile
+        if profile and not any(context.get("parameter_name") == "molecular_profile_id" and context.get("value") == molecular_profile_id for context in contexts):
+            contexts.append(cbioportal_profile_context(profile, client))
+
+    if sample_list_id:
+        sample_list = first_matching_sample_list(sample_lists, sample_list_id)
+        if not sample_list:
+            detail = read_optional_cbioportal_record(client, f"sample-lists/{sample_list_id}", sample_list_id, "sample_list")
+            sources.extend(detail["sources"])
+            diagnostics.extend(detail["diagnostics"])
+            sample_list = detail["record"]
+            if sample_list:
+                raw["sample_list"] = sample_list
+        if sample_list and not any(context.get("parameter_name") == "sample_list_id" and context.get("value") == sample_list_id for context in contexts):
+            contexts.append(cbioportal_sample_list_context(sample_list, client))
+
+    resolved = resolved_cbioportal_context(
+        study_id=study_id,
+        molecular_profile_id=molecular_profile_id,
+        sample_list_id=sample_list_id,
+        profile=profile,
+        sample_list=sample_list,
+    )
+    diagnostics.extend(cbioportal_context_diagnostics(resolved))
+    recommended_calls = recommended_cbioportal_calls(
+        study_id=study_id,
+        profile=profile,
+        sample_list=sample_list,
+        clinical_attributes=clinical_attributes,
+        compatible=resolved.get("compatible"),
+    )
+    filtered_contexts = [context for context in contexts if context_matches(context, query)]
+    context_parameter_names = {
+        "study_id",
+        "molecular_profile_id",
+        "sample_list_id",
+        "clinical_attribute_ids",
+    }
+    return build_dynamic_context_response(
+        schema_version=RESULT_SCHEMA_VERSION,
+        context_schema_version=CBIOPORTAL_CONTEXT_SCHEMA_VERSION,
+        database="cbioportal",
+        query={
+            "context_type": context_type,
+            "query": query,
+            "study_id": study_id,
+            "molecular_profile_id": molecular_profile_id,
+            "sample_list_id": sample_list_id,
+        },
+        contexts=filtered_contexts,
+        recommended_calls=recommended_calls,
+        max_results=max_results,
+        fallback_source=source_info("resolve_context", {"context_type": context_type, "query": query}),
+        sources=sources,
+        entity_groups={"studies", "profiles", "sample_lists", "clinical_attributes"},
+        raw=raw,
+        summary_fields={
+            "entities": lambda context: context.get("parameter_name") in context_parameter_names,
+            "studies": lambda context: context.get("parameter_name") == "study_id",
+            "profiles": lambda context: context.get("parameter_name") == "molecular_profile_id",
+            "sample_lists": lambda context: context.get("parameter_name") == "sample_list_id",
+            "clinical_attributes": lambda context: context.get("parameter_name") == "clinical_attribute_ids",
+        },
+        extra_fields={"resolved": resolved, **({"diagnostics": diagnostics} if diagnostics else {})},
+        include_raw=include_raw,
+        prioritize_entities=True,
+        dedupe_calls=False,
+    )
 
 
 def cbioportal_study_search(args: JsonObject, client: CbioPortalClient) -> JsonObject:
@@ -915,6 +1071,428 @@ def attach_warnings(response: JsonObject, records: list[JsonObject], warnings: l
                 hover["fields"] = metadata[:8]
 
 
+def optional_context_type(args: JsonObject, name: str, *, allowed: list[str], default: str) -> str:
+    value = optional_string(args, name) or default
+    if value not in allowed:
+        raise McpError(-32602, f"{name} must be one of: {', '.join(allowed)}")
+    return value
+
+
+def static_cbioportal_contexts(client: CbioPortalClient) -> list[JsonObject]:
+    contexts: list[JsonObject] = [
+        cbioportal_parameter_context(
+            "context_type",
+            value,
+            label=value,
+            description="Dynamic cBioPortal context family to resolve before making a data-fetch call.",
+            kind="enum",
+            url="",
+            source_endpoint="resolve_context",
+            metadata={"category": "context"},
+        )
+        for value in CBIOPORTAL_CONTEXT_TYPES
+    ]
+    contexts.extend(
+        [
+            cbioportal_parameter_context(
+                "clinical_data_type",
+                value,
+                label=value,
+                description="Clinical data entity type accepted by cbioportal_clinical_data_fetch.",
+                kind="enum",
+                url="",
+                source_endpoint="schema",
+                metadata={"tool_name": "cbioportal_clinical_data_fetch"},
+            )
+            for value in ["SAMPLE", "PATIENT"]
+        ]
+    )
+    contexts.extend(
+        cbioportal_parameter_context(
+            "discrete_copy_number_event_type",
+            value,
+            label=value,
+            description="Discrete copy-number event filter accepted by cbioportal_discrete_cna_fetch.",
+            kind="enum",
+            url="",
+            source_endpoint="schema",
+            metadata={"tool_name": "cbioportal_discrete_cna_fetch"},
+        )
+        for value in sorted(CNA_EVENT_TYPES)
+    )
+    contexts.append(
+        cbioportal_parameter_context(
+            "hugo_gene_symbols",
+            "TP53",
+            label="HUGO gene symbols",
+            description="Open gene-symbol array resolved through cBioPortal genes/fetch before molecular-data calls.",
+            kind="dynamic_array",
+            url=client.build_url("genes/fetch", {"geneIdType": "HUGO_GENE_SYMBOL"}),
+            source_endpoint="genes/fetch",
+            metadata={"examples": ["TP53", "BRCA1", "MYC"], "alternative": "entrez_gene_ids"},
+        )
+    )
+    return contexts
+
+
+def cbioportal_parameter_context(
+    parameter_name: str,
+    value: object,
+    *,
+    label: str,
+    description: str,
+    kind: str,
+    url: str,
+    source_endpoint: str,
+    metadata: JsonObject | None = None,
+) -> JsonObject:
+    metadata = metadata or {}
+    group = cbioportal_context_group(parameter_name)
+    display_fields = [{"label": key.replace("_", " ").title(), "value": item} for key, item in metadata.items() if item not in ("", None, [], {})]
+    if url:
+        display_fields.append({"label": "URL", "value": url})
+    return {
+        "kind": kind,
+        "group": group,
+        "parameter_name": parameter_name,
+        "value": value,
+        "label": label,
+        "title": label,
+        "description": description,
+        "url": url,
+        "source": source_endpoint,
+        "metadata": metadata,
+        "display": {
+            "component": "dataset",
+            "chip_label": parameter_name,
+            "icon": "cbioportal",
+            "title": label,
+            "subtitle": f"{parameter_name}: {value}",
+            "description": description,
+            "metadata": display_fields,
+            "badges": [
+                {"label": "cBioPortal", "kind": "source"},
+                {"label": parameter_name, "kind": "parameter"},
+            ],
+            "actions": [{"label": "Open source", "url": url, "kind": "external", "primary": True}] if url else [],
+            "hover": {"title": label, "subtitle": f"{parameter_name}: {value}", "icon": "cbioportal", "fields": display_fields},
+            "primary_url": url,
+        },
+    }
+
+
+def cbioportal_context_group(parameter_name: str) -> str:
+    return {
+        "study_id": "studies",
+        "molecular_profile_id": "profiles",
+        "sample_list_id": "sample_lists",
+        "clinical_attribute_ids": "clinical_attributes",
+    }.get(parameter_name, "parameters")
+
+
+def cbioportal_study_context(study: JsonObject, client: CbioPortalClient) -> JsonObject:
+    record = cbioportal_study_record(
+        study,
+        api_base_url=client.config.api_base_url,
+        website_base_url=client.config.website_base_url,
+    )
+    data = record["data"]
+    return cbioportal_parameter_context(
+        "study_id",
+        data["study_id"],
+        label=record["title"],
+        description=record["description"],
+        kind="study",
+        url=data["url"],
+        source_endpoint="studies",
+        metadata={
+            "study_id": data["study_id"],
+            "cancer_type_id": data["cancer_type_id"],
+            "all_sample_count": data["all_sample_count"],
+            "sequenced_sample_count": data["sequenced_sample_count"],
+        },
+    )
+
+
+def cbioportal_profile_context(profile: JsonObject, client: CbioPortalClient) -> JsonObject:
+    record = cbioportal_profile_record(
+        profile,
+        api_base_url=client.config.api_base_url,
+        website_base_url=client.config.website_base_url,
+    )
+    data = record["data"]
+    return cbioportal_parameter_context(
+        "molecular_profile_id",
+        data["molecular_profile_id"],
+        label=record["title"],
+        description=record["description"],
+        kind="molecular_profile",
+        url=data["url"],
+        source_endpoint="molecular-profiles",
+        metadata={
+            "study_id": data["study_id"],
+            "molecular_alteration_type": data["molecular_alteration_type"],
+            "datatype": data["datatype"],
+            "tool_hint": profile_fetch_tool(profile),
+        },
+    )
+
+
+def cbioportal_sample_list_context(sample_list: JsonObject, client: CbioPortalClient) -> JsonObject:
+    record = cbioportal_sample_list_record(
+        sample_list,
+        api_base_url=client.config.api_base_url,
+        website_base_url=client.config.website_base_url,
+    )
+    data = record["data"]
+    return cbioportal_parameter_context(
+        "sample_list_id",
+        data["sample_list_id"],
+        label=record["title"],
+        description=record["description"],
+        kind="sample_list",
+        url=data["url"],
+        source_endpoint="sample-lists",
+        metadata={
+            "study_id": data["study_id"],
+            "category": data["category"],
+            "sample_count": data["sample_count"],
+        },
+    )
+
+
+def cbioportal_clinical_attribute_context(study_id: str, attribute: JsonObject, client: CbioPortalClient) -> JsonObject:
+    attribute_id = str(attribute.get("clinicalAttributeId") or "")
+    display_name = str(attribute.get("displayName") or attribute_id)
+    description = str(attribute.get("description") or "cBioPortal clinical attribute")
+    url = f"{client.config.website_base_url.rstrip('/')}/study/summary?id={study_id}"
+    return cbioportal_parameter_context(
+        "clinical_attribute_ids",
+        attribute_id,
+        label=display_name,
+        description=description,
+        kind="clinical_attribute",
+        url=url,
+        source_endpoint=f"studies/{study_id}/clinical-attributes",
+        metadata={
+            "study_id": study_id,
+            "clinical_attribute_id": attribute_id,
+            "datatype": attribute.get("datatype") or "",
+            "patient_attribute": bool(attribute.get("patientAttribute")),
+        },
+    )
+
+
+def first_matching_profile(profiles: list[JsonObject], molecular_profile_id: str) -> JsonObject:
+    for profile in profiles:
+        if profile.get("molecularProfileId") == molecular_profile_id:
+            return profile
+    return {}
+
+
+def first_matching_sample_list(sample_lists: list[JsonObject], sample_list_id: str) -> JsonObject:
+    for sample_list in sample_lists:
+        if sample_list.get("sampleListId") == sample_list_id:
+            return sample_list
+    return {}
+
+
+def read_optional_cbioportal_record(client: CbioPortalClient, endpoint: str, identifier: str, target: str) -> JsonObject:
+    params: JsonObject = {"projection": "SUMMARY"}
+    try:
+        payload, headers = client.request_json_with_headers(endpoint, params)
+        record = ensure_object(payload, identifier)
+        return {
+            "record": record,
+            "sources": [source_with_headers(endpoint, params, headers, client.build_url(endpoint, params))],
+            "diagnostics": [],
+        }
+    except CbioPortalError as exc:
+        return {
+            "record": {},
+            "sources": [source_info(endpoint, params)],
+            "diagnostics": [
+                {
+                    "code": f"cbioportal_{target}_not_found" if exc.status_code == 404 else f"cbioportal_{target}_lookup_failed",
+                    "severity": "warning" if exc.status_code == 404 else "error",
+                    "message": f"Could not resolve {target} {identifier}: {exc.response_body[:300] or str(exc)}",
+                    "identifier": identifier,
+                    "endpoint": endpoint,
+                    "status_code": exc.status_code,
+                    "url": client.build_url(endpoint, params),
+                }
+            ],
+        }
+
+
+def resolved_cbioportal_context(
+    *,
+    study_id: str,
+    molecular_profile_id: str,
+    sample_list_id: str,
+    profile: JsonObject,
+    sample_list: JsonObject,
+) -> JsonObject:
+    profile_study_id = str(profile.get("studyId") or "")
+    sample_list_study_id = str(sample_list.get("studyId") or "")
+    compatible: bool | None = None
+    if profile_study_id and sample_list_study_id:
+        compatible = profile_study_id == sample_list_study_id
+    elif study_id and profile_study_id:
+        compatible = profile_study_id == study_id
+    elif study_id and sample_list_study_id:
+        compatible = sample_list_study_id == study_id
+    return {
+        "study_id": study_id,
+        "molecular_profile_id": molecular_profile_id,
+        "sample_list_id": sample_list_id,
+        "profile_study_id": profile_study_id,
+        "sample_list_study_id": sample_list_study_id,
+        "profile_type": str(profile.get("molecularAlterationType") or ""),
+        "profile_datatype": str(profile.get("datatype") or ""),
+        "compatible": compatible,
+    }
+
+
+def cbioportal_context_diagnostics(resolved: JsonObject) -> list[JsonObject]:
+    diagnostics: list[JsonObject] = []
+    study_id = str(resolved.get("study_id") or "")
+    profile_study_id = str(resolved.get("profile_study_id") or "")
+    sample_list_study_id = str(resolved.get("sample_list_study_id") or "")
+    if study_id and profile_study_id and study_id != profile_study_id:
+        diagnostics.append(
+            {
+                "code": "cbioportal_profile_study_mismatch",
+                "severity": "error",
+                "message": f"Molecular profile belongs to {profile_study_id}, not requested study {study_id}.",
+                "recoverable": True,
+                "suggested_action": "Use cbioportal_resolve_context with the profile study or choose a profile from the requested study.",
+            }
+        )
+    if study_id and sample_list_study_id and study_id != sample_list_study_id:
+        diagnostics.append(
+            {
+                "code": "cbioportal_sample_list_study_mismatch",
+                "severity": "error",
+                "message": f"Sample list belongs to {sample_list_study_id}, not requested study {study_id}.",
+                "recoverable": True,
+                "suggested_action": "Use a sample list from the same study as the molecular profile.",
+            }
+        )
+    if profile_study_id and sample_list_study_id and profile_study_id != sample_list_study_id:
+        diagnostics.append(
+            {
+                "code": "cbioportal_profile_sample_list_study_mismatch",
+                "severity": "error",
+                "message": f"Molecular profile study ({profile_study_id}) does not match sample list study ({sample_list_study_id}).",
+                "recoverable": True,
+                "suggested_action": "Resolve profiles and sample lists from one study before calling fetch tools.",
+            }
+        )
+    return diagnostics
+
+
+def recommended_cbioportal_calls(
+    *,
+    study_id: str,
+    profile: JsonObject,
+    sample_list: JsonObject,
+    clinical_attributes: list[JsonObject],
+    compatible: object,
+) -> list[JsonObject]:
+    calls: list[JsonObject] = []
+    if study_id and not profile:
+        calls.extend(
+            [
+                {
+                    "tool_name": "cbioportal_molecular_profiles",
+                    "arguments": {"study_id": study_id},
+                    "reason": "List compatible molecular_profile_id values for this study.",
+                },
+                {
+                    "tool_name": "cbioportal_sample_lists",
+                    "arguments": {"study_id": study_id},
+                    "reason": "List compatible sample_list_id values for this study.",
+                },
+                {
+                    "tool_name": "cbioportal_clinical_attributes",
+                    "arguments": {"study_id": study_id},
+                    "reason": "List clinical_attribute_ids available for this study.",
+                },
+            ]
+        )
+    if profile and sample_list and compatible is not False:
+        tool_name = profile_fetch_tool(profile)
+        arguments: JsonObject = {
+            "molecular_profile_id": str(profile.get("molecularProfileId") or ""),
+            "sample_list_id": str(sample_list.get("sampleListId") or ""),
+        }
+        if tool_name == "cbioportal_discrete_cna_fetch":
+            arguments["discrete_copy_number_event_type"] = "ALL"
+        calls.append(
+            {
+                "tool_name": tool_name,
+                "arguments": arguments,
+                "requires": ["hugo_gene_symbols or entrez_gene_ids"],
+                "reason": "Profile and sample list resolve to the same cBioPortal study.",
+            }
+        )
+    if study_id and sample_list and clinical_attributes and compatible is not False:
+        attribute_ids = [str(row.get("clinicalAttributeId")) for row in clinical_attributes if row.get("clinicalAttributeId")][:5]
+        if attribute_ids:
+            calls.append(
+                {
+                    "tool_name": "cbioportal_clinical_data_fetch",
+                    "arguments": {
+                        "study_id": study_id,
+                        "sample_list_id": str(sample_list.get("sampleListId") or ""),
+                        "clinical_attribute_ids": attribute_ids,
+                    },
+                    "reason": "Clinical attributes and sample list are available for this study.",
+                }
+            )
+        calls.append(
+            {
+                "tool_name": "cbioportal_survival_data_fetch",
+                "arguments": {
+                    "study_id": study_id,
+                    "sample_list_id": str(sample_list.get("sampleListId") or ""),
+                    "survival_prefixes": list(DEFAULT_SURVIVAL_PREFIXES),
+                },
+                "reason": "Sample list can seed patient-level survival data fetches.",
+            }
+        )
+    return calls
+
+
+def profile_fetch_tool(profile: JsonObject) -> str:
+    alteration_type = str(profile.get("molecularAlterationType") or "").upper()
+    datatype = str(profile.get("datatype") or "").upper()
+    if alteration_type == "MUTATION_EXTENDED":
+        return "cbioportal_mutations_fetch"
+    if alteration_type == "COPY_NUMBER_ALTERATION" and datatype == "DISCRETE":
+        return "cbioportal_discrete_cna_fetch"
+    return "cbioportal_molecular_data_fetch"
+
+
+def context_matches(context: JsonObject, query: str) -> bool:
+    if not query:
+        return True
+    needle = query.lower()
+    fields = [
+        context.get("parameter_name"),
+        context.get("value"),
+        context.get("label"),
+        context.get("title"),
+        context.get("description"),
+        context.get("kind"),
+    ]
+    metadata = context.get("metadata")
+    if isinstance(metadata, dict):
+        fields.extend(metadata.values())
+    return any(needle in str(field).lower() for field in fields if field not in (None, ""))
+
+
 def ensure_object(payload: object, identifier: str) -> JsonObject:
     if isinstance(payload, dict) and payload:
         return payload
@@ -966,6 +1544,34 @@ def source_with_headers(
 
 def tool_definitions() -> list[JsonObject]:
     return [
+        parameter_domains_tool_definition("cbioportal_parameter_domains"),
+        {
+            "name": "cbioportal_resolve_context",
+            "title": "Resolve cBioPortal dynamic parameter context",
+            "description": (
+                "Resolve compatible cBioPortal study, molecular_profile_id, sample_list_id, and clinical_attribute_ids candidates "
+                "before fetch calls. Returns front-end-friendly context rows, compatibility diagnostics, source URLs, and recommended calls."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "context_type": {
+                        "type": "string",
+                        "enum": CBIOPORTAL_CONTEXT_TYPES,
+                        "default": "all",
+                        "description": "Context family to resolve. Use fetch_context to validate profile/sample-list compatibility before data fetches.",
+                    },
+                    "query": {"type": "string", "description": "Optional text query for study search or client-side filtering of returned contexts."},
+                    "study_id": {"type": "string", "description": "Optional cBioPortal study ID such as brca_tcga."},
+                    "molecular_profile_id": {"type": "string", "description": "Optional molecular profile ID to validate and classify."},
+                    "sample_list_id": {"type": "string", "description": "Optional sample list ID to validate against the profile or study."},
+                    "max_results": {"type": "integer", "minimum": 1, "maximum": MAX_RESULTS, "default": DEFAULT_RESULTS},
+                    "include_raw": {"type": "boolean", "default": False},
+                },
+                "additionalProperties": False,
+            },
+            "annotations": {"readOnlyHint": True, "openWorldHint": True},
+        },
         {
             "name": "cbioportal_study_search",
             "title": "Search cBioPortal studies",
@@ -1177,6 +1783,8 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS = {
+    "cbioportal_parameter_domains": make_parameter_domains_handler("cbioportal", "cbioportal_parameter_domains", tool_definitions),
+    "cbioportal_resolve_context": cbioportal_resolve_context,
     "cbioportal_study_search": cbioportal_study_search,
     "cbioportal_study_lookup": cbioportal_study_lookup,
     "cbioportal_molecular_profiles": cbioportal_molecular_profiles,

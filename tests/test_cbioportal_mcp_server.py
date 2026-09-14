@@ -404,6 +404,8 @@ class CbioPortalMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "cbioportal_parameter_domains",
+                "cbioportal_resolve_context",
                 "cbioportal_study_search",
                 "cbioportal_study_lookup",
                 "cbioportal_molecular_profiles",
@@ -576,6 +578,58 @@ class CbioPortalMcpServerTests(unittest.TestCase):
         self.assertEqual(result["returned"], 2)
         self.assertEqual(record["data"]["attributes"][0]["clinical_attribute_id"], "CANCER_TYPE")
         self.assertEqual(record["data"]["patient_attribute_count"], 1)
+
+    def test_resolve_context_lists_compatible_study_parameters(self) -> None:
+        result = self.call_tool("cbioportal_resolve_context", {"study_id": STUDY_ID, "context_type": "fetch_context", "max_results": 20})
+        self.assertEqual(result["context_schema_version"], "bioinformatics.dynamic_context.v1")
+        context_names = {context["parameter_name"] for context in result["contexts"]}
+        self.assertIn("molecular_profile_id", context_names)
+        self.assertIn("sample_list_id", context_names)
+        self.assertIn("clinical_attribute_ids", context_names)
+        self.assertTrue(any(context["value"] == EXPRESSION_PROFILE_ID for context in result["contexts"]))
+        tool_names = {call["tool_name"] for call in result["recommended_calls"]}
+        self.assertIn("cbioportal_molecular_profiles", tool_names)
+        self.assertIn("cbioportal_sample_lists", tool_names)
+
+    def test_resolve_context_prioritizes_entities_for_small_context_window(self) -> None:
+        result = self.call_tool("cbioportal_resolve_context", {"study_id": STUDY_ID, "max_results": 2})
+        self.assertEqual(result["contexts"][0]["parameter_name"], "study_id")
+        self.assertEqual(result["contexts"][0]["group"], "studies")
+        self.assertTrue(result["entities"])
+        entity_values = {entity["value"] for entity in result["entities"]}
+        self.assertIn(STUDY_ID, entity_values)
+
+    def test_resolve_context_recommends_fetch_for_compatible_profile_and_sample_list(self) -> None:
+        result = self.call_tool(
+            "cbioportal_resolve_context",
+            {
+                "study_id": STUDY_ID,
+                "molecular_profile_id": EXPRESSION_PROFILE_ID,
+                "sample_list_id": SAMPLE_LIST_ID,
+                "context_type": "fetch_context",
+                "max_results": 20,
+            },
+        )
+        self.assertTrue(result["resolved"]["compatible"])
+        self.assertEqual(result["resolved"]["profile_type"], "MRNA_EXPRESSION")
+        self.assertIn("recommended_calls", result)
+        fetch_calls = [call for call in result["recommended_calls"] if call["tool_name"] == "cbioportal_molecular_data_fetch"]
+        self.assertEqual(fetch_calls[0]["arguments"]["molecular_profile_id"], EXPRESSION_PROFILE_ID)
+        self.assertEqual(fetch_calls[0]["arguments"]["sample_list_id"], SAMPLE_LIST_ID)
+        self.assertIn("hugo_gene_symbols or entrez_gene_ids", fetch_calls[0]["requires"])
+
+    def test_resolve_context_reports_profile_sample_list_mismatch(self) -> None:
+        result = self.call_tool(
+            "cbioportal_resolve_context",
+            {
+                "molecular_profile_id": EXPRESSION_PROFILE_ID,
+                "sample_list_id": MISMATCHED_SAMPLE_LIST_ID,
+                "context_type": "fetch_context",
+            },
+        )
+        self.assertFalse(result["resolved"]["compatible"])
+        codes = {diagnostic["code"] for diagnostic in result["diagnostics"]}
+        self.assertIn("cbioportal_profile_sample_list_study_mismatch", codes)
 
     def test_clinical_data_fetch_returns_matrix_record_from_sample_list(self) -> None:
         result = self.call_tool(

@@ -1,0 +1,2 @@
+"""KEGG MCP server package."""
+
