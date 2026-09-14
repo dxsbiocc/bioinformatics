@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 from .client import CellxGeneClient
 from .constants import DEFAULT_DATASETS, DEFAULT_RESULTS, MAX_DATASETS, MAX_RESULTS, RESULT_SCHEMA_VERSION, JsonObject
 from .errors import CellxGeneError
@@ -215,6 +216,7 @@ def source_with_headers(endpoint: str, params: JsonObject, headers: dict[str, st
 
 def tool_definitions() -> list[JsonObject]:
     return [
+        parameter_domains_tool_definition("cellxgene_parameter_domains"),
         {
             "name": "cellxgene_collection_lookup",
             "title": "Look up a CELLxGENE Discover collection",
@@ -279,6 +281,7 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS = {
+    "cellxgene_parameter_domains": make_parameter_domains_handler("cellxgene", "cellxgene_parameter_domains", tool_definitions),
     "cellxgene_collection_lookup": cellxgene_collection_lookup,
     "cellxgene_collections_search": cellxgene_collections_search,
     "cellxgene_collection_assets": cellxgene_collection_assets,

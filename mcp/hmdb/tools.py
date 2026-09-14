@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 from .client import HmdbClient
 from .constants import DEFAULT_RESULTS, HMDB_CATEGORIES, MAX_RESULTS, RESULT_SCHEMA_VERSION, SEARCH_PATH, JsonObject
 from .records import hmdb_record
@@ -147,6 +148,7 @@ def tool_definitions() -> list[JsonObject]:
         "include_raw": {"type": "boolean", "default": False},
     }
     return [
+        parameter_domains_tool_definition("hmdb_parameter_domains"),
         {
             "name": "hmdb_search",
             "title": "Search HMDB by category",
@@ -202,6 +204,7 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS = {
+    "hmdb_parameter_domains": make_parameter_domains_handler("hmdb", "hmdb_parameter_domains", tool_definitions),
     "hmdb_search": hmdb_search,
     "hmdb_metabolite_search": hmdb_metabolite_search,
     "hmdb_protein_search": hmdb_protein_search,

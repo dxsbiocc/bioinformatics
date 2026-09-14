@@ -116,7 +116,7 @@ class AlphaFoldMcpServerTests(unittest.TestCase):
         )
         assert response is not None
         names = {tool["name"] for tool in response["result"]["tools"]}
-        self.assertEqual(names, {"alphafold_lookup", "alphafold_status"})
+        self.assertEqual(names, {"alphafold_parameter_domains", "alphafold_lookup", "alphafold_status"})
 
     def test_lookup_returns_frontend_compatible_structure_records(self) -> None:
         result = self.call_tool(

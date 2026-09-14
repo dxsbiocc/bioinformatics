@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 import urllib.parse
 from typing import Callable
 
@@ -137,6 +138,7 @@ def tool_definitions() -> list[JsonObject]:
         "openWorldHint": True,
     }
     return [
+        parameter_domains_tool_definition("alphafold_parameter_domains"),
         {
             "name": "alphafold_lookup",
             "title": "Look up AlphaFold predicted structures",
@@ -198,6 +200,7 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS: dict[str, Callable[[JsonObject, AlphaFoldClient], JsonObject]] = {
+    "alphafold_parameter_domains": make_parameter_domains_handler("alphafold", "alphafold_parameter_domains", tool_definitions),
     "alphafold_lookup": alphafold_lookup,
     "alphafold_status": alphafold_status,
 }

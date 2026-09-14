@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 from .client import RnaCentralClient
 from .constants import MAX_RESULTS, RESULT_SCHEMA_VERSION, JsonObject
 from .errors import RnaCentralError
@@ -183,6 +184,7 @@ def source_with_headers(endpoint: str, params: JsonObject, headers: dict[str, st
 
 def tool_definitions() -> list[JsonObject]:
     return [
+        parameter_domains_tool_definition("rnacentral_parameter_domains"),
         {
             "name": "rnacentral_entry_lookup",
             "title": "Look up an RNAcentral RNA entry",
@@ -248,6 +250,7 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS = {
+    "rnacentral_parameter_domains": make_parameter_domains_handler("rnacentral", "rnacentral_parameter_domains", tool_definitions),
     "rnacentral_entry_lookup": rnacentral_entry_lookup,
     "rnacentral_search": rnacentral_search,
     "rnacentral_xrefs": rnacentral_xrefs,

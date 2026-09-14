@@ -130,6 +130,7 @@ class PrideMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "pride_parameter_domains",
                 "pride_project_lookup",
                 "pride_project_search",
                 "pride_project_files",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 from .client import PrideClient
 from .constants import DEFAULT_FILES, DEFAULT_RESULTS, MAX_FILES, MAX_RESULTS, RESULT_SCHEMA_VERSION, JsonObject
 from .errors import PrideError
@@ -169,6 +170,7 @@ def source_with_headers(endpoint: str, params: JsonObject, headers: dict[str, st
 
 def tool_definitions() -> list[JsonObject]:
     return [
+        parameter_domains_tool_definition("pride_parameter_domains"),
         {
             "name": "pride_project_lookup",
             "title": "Look up a PRIDE Archive project",
@@ -233,6 +235,7 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS = {
+    "pride_parameter_domains": make_parameter_domains_handler("pride", "pride_parameter_domains", tool_definitions),
     "pride_project_lookup": pride_project_lookup,
     "pride_project_search": pride_project_search,
     "pride_project_files": pride_project_files,

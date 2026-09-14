@@ -104,6 +104,7 @@ class BioRxivMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "biorxiv_parameter_domains",
                 "biorxiv_preprint_lookup",
                 "biorxiv_preprint_interval",
                 "biorxiv_publication_lookup",

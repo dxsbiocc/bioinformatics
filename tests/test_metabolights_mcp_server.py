@@ -180,6 +180,7 @@ class MetaboLightsMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "metabolights_parameter_domains",
                 "metabolights_study_lookup",
                 "metabolights_search",
                 "metabolights_file_manifest",

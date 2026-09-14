@@ -161,7 +161,7 @@ class EfoMcpServerTests(unittest.TestCase):
         names = {tool["name"] for tool in response["result"]["tools"]}
         self.assertEqual(
             names,
-            {"efo_term_lookup", "efo_term_search", "efo_term_children", "efo_term_descendants", "efo_status"},
+            {"efo_parameter_domains", "efo_term_lookup", "efo_term_search", "efo_term_children", "efo_term_descendants", "efo_status"},
         )
 
     def test_term_lookup_returns_frontend_compatible_ontology_record(self) -> None:

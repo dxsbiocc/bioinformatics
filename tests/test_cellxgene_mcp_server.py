@@ -131,6 +131,7 @@ class CellxGeneMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "cellxgene_parameter_domains",
                 "cellxgene_collection_lookup",
                 "cellxgene_collections_search",
                 "cellxgene_collection_assets",

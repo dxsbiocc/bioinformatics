@@ -116,6 +116,7 @@ class RnaCentralMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "rnacentral_parameter_domains",
                 "rnacentral_entry_lookup",
                 "rnacentral_search",
                 "rnacentral_xrefs",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 import urllib.parse
 
 from .client import MgnifyClient
@@ -182,6 +183,7 @@ def source_with_headers(endpoint: str, params: JsonObject, headers: dict[str, st
 
 def tool_definitions() -> list[JsonObject]:
     return [
+        parameter_domains_tool_definition("mgnify_parameter_domains"),
         {
             "name": "mgnify_study_lookup",
             "title": "Look up an MGnify study",
@@ -258,6 +260,7 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS = {
+    "mgnify_parameter_domains": make_parameter_domains_handler("mgnify", "mgnify_parameter_domains", tool_definitions),
     "mgnify_study_lookup": mgnify_study_lookup,
     "mgnify_study_search": mgnify_study_search,
     "mgnify_sample_lookup": mgnify_sample_lookup,

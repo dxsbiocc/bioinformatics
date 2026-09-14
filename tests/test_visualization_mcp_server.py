@@ -48,6 +48,7 @@ class VisualizationMcpServerTests(unittest.TestCase):
         response = server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
         self.assertIsNotNone(response)
         tools = {tool["name"] for tool in response["result"]["tools"]}
+        self.assertIn("omics_visualization_parameter_domains", tools)
         self.assertIn("omics_visualization_route", tools)
         self.assertIn("omics_visualization_contract_coverage", tools)
         self.assertIn("omics_visualization_status", tools)

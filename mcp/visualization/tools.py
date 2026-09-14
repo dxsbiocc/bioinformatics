@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 import time
 import urllib.parse
 import sys
@@ -566,6 +567,7 @@ def source_info(endpoint: str, params: JsonObject) -> JsonObject:
 
 def tool_definitions() -> list[JsonObject]:
     return [
+        parameter_domains_tool_definition("omics_visualization_parameter_domains"),
         {
             "name": ROUTE_TOOL,
             "title": "Route omics visualization template",
@@ -617,6 +619,7 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS = {
+    "omics_visualization_parameter_domains": make_parameter_domains_handler("omics_visualization", "omics_visualization_parameter_domains", tool_definitions),
     ROUTE_TOOL: omics_visualization_route,
     COVERAGE_TOOL: omics_visualization_contract_coverage,
     STATUS_TOOL: omics_visualization_status,

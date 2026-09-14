@@ -186,6 +186,7 @@ class EncodeMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "encode_parameter_domains",
                 "encode_experiment_lookup",
                 "encode_experiment_search",
                 "encode_biosample_lookup",

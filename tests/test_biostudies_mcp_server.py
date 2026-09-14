@@ -210,6 +210,7 @@ class BioStudiesMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "biostudies_parameter_domains",
                 "biostudies_study_lookup",
                 "biostudies_search",
                 "arrayexpress_search",

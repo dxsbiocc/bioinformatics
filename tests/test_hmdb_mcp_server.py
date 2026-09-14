@@ -107,6 +107,7 @@ class HmdbMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "hmdb_parameter_domains",
                 "hmdb_search",
                 "hmdb_metabolite_search",
                 "hmdb_protein_search",

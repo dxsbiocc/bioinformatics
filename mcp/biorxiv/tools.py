@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 from .client import BioRxivClient
 from .constants import MAX_RESULTS, RESULT_SCHEMA_VERSION, JsonObject
 from .errors import BioRxivError
@@ -232,6 +233,7 @@ def source_with_headers(endpoint: str, params: JsonObject, headers: dict[str, st
 
 def tool_definitions() -> list[JsonObject]:
     return [
+        parameter_domains_tool_definition("biorxiv_parameter_domains"),
         {
             "name": "biorxiv_preprint_lookup",
             "title": "Look up a bioRxiv or medRxiv preprint",
@@ -318,6 +320,7 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS = {
+    "biorxiv_parameter_domains": make_parameter_domains_handler("biorxiv", "biorxiv_parameter_domains", tool_definitions),
     "biorxiv_preprint_lookup": biorxiv_preprint_lookup,
     "biorxiv_preprint_interval": biorxiv_preprint_interval,
     "biorxiv_publication_lookup": biorxiv_publication_lookup,

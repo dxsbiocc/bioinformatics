@@ -112,7 +112,7 @@ class HpaMcpServerTests(unittest.TestCase):
         response = self.server.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
         assert response is not None
         names = {tool["name"] for tool in response["result"]["tools"]}
-        self.assertEqual(names, {"hpa_gene_lookup", "hpa_search", "hpa_status"})
+        self.assertEqual(names, {"hpa_parameter_domains", "hpa_gene_lookup", "hpa_search", "hpa_status"})
 
     def test_gene_lookup_returns_frontend_compatible_gene_record(self) -> None:
         result = self.call_tool("hpa_gene_lookup", {"ensembl_id": "ensg00000141510"})

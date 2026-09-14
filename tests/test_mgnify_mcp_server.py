@@ -161,6 +161,7 @@ class MgnifyMcpServerTests(unittest.TestCase):
         self.assertEqual(
             names,
             {
+                "mgnify_parameter_domains",
                 "mgnify_study_lookup",
                 "mgnify_study_search",
                 "mgnify_sample_lookup",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from mcp.parameter_domains import make_parameter_domains_handler, parameter_domains_tool_definition
 import urllib.parse
 
 from .client import HpaClient
@@ -133,6 +134,7 @@ def source_url(endpoint: str, params: JsonObject, base_url: str) -> str:
 
 def tool_definitions() -> list[JsonObject]:
     return [
+        parameter_domains_tool_definition("hpa_parameter_domains"),
         {
             "name": "hpa_gene_lookup",
             "title": "Look up a Human Protein Atlas gene",
@@ -179,6 +181,7 @@ def tool_definitions() -> list[JsonObject]:
 
 
 TOOL_HANDLERS = {
+    "hpa_parameter_domains": make_parameter_domains_handler("hpa", "hpa_parameter_domains", tool_definitions),
     "hpa_gene_lookup": hpa_gene_lookup,
     "hpa_search": hpa_search,
     "hpa_status": hpa_status,
