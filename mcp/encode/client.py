@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-import httpx
+from mcp.http_client import Opener, PacedHttpClient
 
 from .constants import DEFAULT_TOOL_NAME, ENCODE_BASE_URL, JsonObject
 from .errors import EncodeError
@@ -44,30 +44,25 @@ class EncodeClient:
         self,
         config: EncodeConfig | None = None,
         *,
-        opener: Callable[[httpx.Request, float], str] | None = None,
+        opener: Opener | None = None,
         sleep: Callable[[float], None] = time.sleep,
         monotonic: Callable[[], float] = time.monotonic,
     ) -> None:
         self.config = config or EncodeConfig.from_env()
-        self._opener = opener
-        self._sleep = sleep
-        self._monotonic = monotonic
-        self._last_request_at = 0.0
-        self._http: httpx.Client | None = None
-
-    @property
-    def _client(self) -> httpx.Client:
-        if self._http is None:
-            self._http = httpx.Client(
-                http2=True,
-                timeout=httpx.Timeout(self.config.timeout_seconds),
-            )
-        return self._http
+        self._http = PacedHttpClient(
+            error_class=EncodeError,
+            service_name="ENCODE",
+            timeout_seconds=self.config.timeout_seconds,
+            max_retries=self.config.max_retries,
+            retry_base_seconds=self.config.retry_base_seconds,
+            requests_per_second=self.requests_per_second,
+            opener=opener,
+            sleep=sleep,
+            monotonic=monotonic,
+        )
 
     def close(self) -> None:
-        if self._http is not None:
-            self._http.close()
-            self._http = None
+        self._http.close()
 
     @property
     def requests_per_second(self) -> int:
@@ -94,7 +89,6 @@ class EncodeClient:
         return f"{self.config.base_url.rstrip('/')}/{path_or_url.lstrip('/')}"
 
     def _open_json(self, url: str, label: str) -> tuple[Any, dict[str, str]]:
-        self._throttle()
         text, response_headers = self._open_url(url, label, accept="application/json")
         try:
             payload = json.loads(text)
@@ -103,33 +97,11 @@ class EncodeClient:
         return payload, response_headers
 
     def _open_url(self, url: str, label: str, *, accept: str) -> tuple[str, dict[str, str]]:
-        request = httpx.Request("GET", url, headers={"Accept": accept, "User-Agent": self._user_agent()})
-        try:
-            if self._opener is not None:
-                return self._opener(request, self.config.timeout_seconds), {}
-            for attempt in range(self.config.max_retries + 1):
-                try:
-                    response = self._client.send(request)
-                    response.raise_for_status()
-                    response_headers = {key.lower(): value for key, value in response.headers.items()}
-                    return response.read().decode("utf-8", errors="replace"), response_headers
-                except httpx.RequestError:
-                    if attempt >= self.config.max_retries:
-                        raise
-                    self._sleep(self.config.retry_base_seconds * (attempt + 1))
-            raise EncodeError(f"Could not reach ENCODE {label}")
-        except httpx.HTTPStatusError as exc:
-            detail = exc.response.text
-            raise EncodeError(f"ENCODE {label} returned HTTP {exc.response.status_code}: {detail[:500]}") from exc
-        except httpx.RequestError as exc:
-            raise EncodeError(f"Could not reach ENCODE {label}: {exc}") from exc
-
-    def _throttle(self) -> None:
-        minimum_interval = 1.0 / self.requests_per_second
-        elapsed = self._monotonic() - self._last_request_at
-        if elapsed < minimum_interval:
-            self._sleep(minimum_interval - elapsed)
-        self._last_request_at = self._monotonic()
+        headers = {
+            "Accept": accept,
+            "User-Agent": self._user_agent(),
+        }
+        return self._http.send("GET", url, headers, label=label)
 
     def _user_agent(self) -> str:
         if self.config.contact:
