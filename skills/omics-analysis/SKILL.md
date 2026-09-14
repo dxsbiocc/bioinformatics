@@ -2,9 +2,11 @@
 name: omics-analysis
 description: >-
   Analyze prepared omics count matrices, abundance tables, assay measurements,
-  and sample metadata. Use for quality assessment, normalization decisions,
-  dimensionality reduction, clustering, differential testing, enrichment-ready
-  result generation, and statistical interpretation. Do not use for raw-read
+  and sample metadata. Use for cross-omics or general statistical analysis such
+  as quality assessment, normalization decisions, dimensionality reduction,
+  clustering, differential testing, enrichment-ready result generation, and
+  statistical interpretation. Do not use for transcriptomics-specific bulk
+  RNA-seq, single-cell RNA-seq, or spatial transcriptomics analysis, raw-read
   processing, public-database retrieval, literature review, or visualization-only
   requests when analysis results already exist.
 ---
@@ -48,3 +50,4 @@ the original inputs.
 This skill begins with prepared matrices or tables. Raw FASTQ/BAM processing and
 repeatable workflow orchestration belong to `omics-pipeline`; dataset discovery
 belongs to `omics-database`; paper search belongs to `omics-literature`.
+Transcriptomics-specific analysis belongs to `transcriptomics-analysis`.

@@ -204,6 +204,15 @@ records, using documented APIs or export mechanisms and preserving provenance.
    previews, PubMed links when present, and cBioPortal browser/API links.
 3. Query narrowly, handle pagination, and preserve stable accession identifiers,
    release information, and source URLs.
+   For public cancer expression or multi-omics contrasts where tumor/normal,
+   paired, disease state, treatment arm, time point, or other sample-level
+   grouping defines the requested comparison, choose a source that exposes
+   sample identifiers plus those grouping fields. Use cohort portals such as
+   cBioPortal for discovery, molecular-profile inspection, and bounded cohort
+   queries, but do not rely on them as the sole source when the required
+   comparison groups are absent, aggregated, or not represented in the selected
+   profile/sample list. Prefer repository exports or APIs that preserve
+   sample-level annotations before downstream analysis.
 4. Validate identifier mappings and distinguish exact matches, aliases,
    deprecated records, orthologs, and inferred associations.
 5. Save raw responses only when useful or requested, then provide a compact
